@@ -27,8 +27,12 @@ def a2u_test():
     data = request.json
     uid = data.get("uid")
     amount = data.get("amount")
-    memo = "a2u-python-test"
+    memo = "a2u-test"
 
+    print("📥 Nhận A2U Request:")
+    print("🆔 UID:", uid)
+    print("💰 Amount:", amount)
+    
     if not uid or not amount:
         return jsonify({ "success": False, "message": "Thiếu uid hoặc amount" }), 400
 
@@ -62,7 +66,10 @@ def a2u_test():
 
         return jsonify({ "success": True, "txid": txid })
     except Exception as e:
-        return jsonify({ "success": False, "message": str(e) }), 500
+        import traceback
+        print("❌ Lỗi xử lý A2U:")
+        traceback.print_exc()  # in full stack trace vào log Render
+        return jsonify({"success": False, "message": str(e)}), 500
     
 if __name__ == "__main__":
     app.run(debug=True)
