@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from pi_python import PiNetwork
 from stellar_sdk import Server, TransactionBuilder, Network, Keypair, Asset
 from dotenv import load_dotenv
@@ -7,6 +8,7 @@ import os
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)
 
 PI_API_KEY = os.getenv("PI_API_KEY")
 APP_PUBLIC_KEY = os.getenv("APP_PUBLIC_KEY")
