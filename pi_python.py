@@ -148,3 +148,9 @@ class PiNetwork:
         url = f"{self.base_url}/v2/payments/{payment_id}/complete"
         res = requests.post(url, data=obj, json=json.loads(obj), headers=self.get_http_headers())
         return self.handle_http_response(res)
+    
+    def get_user_wallet_address(uid):
+        url = f"{self.base_url}/v2/users/{uid}"
+        res = requests.get(url, headers=self.get_http_headers())
+        data = res.json()
+        return data["user"]["wallet"]["public_key"]

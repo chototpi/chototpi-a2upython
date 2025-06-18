@@ -58,12 +58,24 @@ def a2u_test():
         data = request.get_json()
         uid = data.get("uid")
         amount = str(data.get("amount"))
+
         print(f"👉 ENV: {pi.env}")
         print(f"🔗 base_url: {pi.base_url}")
         print(f"🪪 APP_PUBLIC_KEY: {pi.keypair.public_key}")
-        identifier = f"a2u-{uid[:6]}-{int(time.time())}"
-        to_address = os.getenv("APP_PUBLIC_KEY")  # hoặc dynamic nếu bạn cần
+        print(f"👤 Đang gửi A2U cho UID: {uid}, Amount: {amount}")
 
+        # 🔎 B1: Gọi Pi API để lấy public key người dùng
+        user_url = f"{pi.base_url}/v2/users/{uid}"
+        user_res = requests.get(user_url, headers=pi.get_http_headers())
+        user_data = user_res.json()
+        user_wallet = user_data["user"]["wallet"]["public_key"]
+
+        print(f"🎯 User Wallet Address: {user_wallet}")
+
+        # 🧾 B2: Tạo identifier duy nhất
+        identifier = f"a2u-{uid[:6]}-{int(time.time())}"
+
+        # 🪙 B3: Tạo dữ liệu giao dịch
         payment_data = {
             "user_uid": uid,
             "amount": amount,
@@ -71,15 +83,18 @@ def a2u_test():
             "metadata": {"source": "a2u"},
             "identifier": identifier,
             "from_address": pi.keypair.public_key,
-            "to_address": to_address,
+            "to_address": user_wallet,
             "network": pi.network
         }
 
+        # 🚀 B4: Tạo và gửi giao dịch
         payment_id = pi.create_payment(payment_data)
         txid = pi.submit_payment(payment_id, None)
         pi.complete_payment(payment_id, txid)
 
+        print(f"✅ Đã gửi A2U thành công: {txid}")
         return jsonify({"success": True, "txid": txid})
+
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
