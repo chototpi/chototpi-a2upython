@@ -19,11 +19,7 @@ class PiNetwork:
             raise ValueError("❌ APP_PRIVATE_KEY không hợp lệ!")
 
         self.api_key = api_key
-
-        # Đọc môi trường từ biến môi trường
         self.env = os.getenv("PI_ENV", "mainnet").lower()
-
-        # Tự động chọn base_url
         if self.env == "testnet":
             self.base_url = "https://api.testnet.minepi.com"
             self.network = "Pi Testnet"
@@ -83,7 +79,7 @@ class PiNetwork:
         url = f"{self.base_url}/v2/payments"
         res = requests.post(url, data=obj, json=json.loads(obj), headers=self.get_http_headers())
         parsed = self.handle_http_response(res)
-        
+
         if 'error' in parsed and 'payment' in parsed:
             identifier = parsed['payment']['identifier']
             self.open_payments[identifier] = parsed['payment']
@@ -141,6 +137,11 @@ class PiNetwork:
             del self.open_payments[payment_id]
 
         return txid
+    
+    def approve_payment(self, payment_id):
+        url = f"{self.base_url}/v2/payments/{payment_id}/approve"
+        res = requests.post(url, headers=self.get_http_headers())
+        return self.handle_http_response(res)
 
     def complete_payment(self, identifier, txid):
         obj = json.dumps({ "txid": txid }) if txid else "{}"
