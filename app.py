@@ -12,8 +12,7 @@ CORS(app)
 pi = PiNetwork()
 pi.initialize(
     api_key=os.getenv("PI_API_KEY"),
-    wallet_private_key=os.getenv("APP_PRIVATE_KEY"),
-    network=os.getenv("PI_NETWORK", "Pi Network")
+    wallet_private_key=os.getenv("APP_PRIVATE_KEY")
 )
 
 @app.route("/", methods=["GET"])
