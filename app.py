@@ -11,12 +11,10 @@ app = Flask(__name__)
 CORS(app)
 
 PI_API_KEY = os.getenv("PI_API_KEY")
-PI_APP_ID = os.getenv("PI_APP_ID")
 PI_ENV = os.getenv("PI_ENV", "sandbox")
 
 pi = PiNetwork(
     api_key=PI_API_KEY,
-    app_id=PI_APP_ID,
     env=PI_ENV
 )
 
