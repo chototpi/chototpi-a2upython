@@ -16,6 +16,43 @@ pi.initialize(
     network=os.getenv("PI_NETWORK", "Pi Network")
 )
 
+@app.route("/", methods=["GET"])
+def home():
+    return "✅ Pi A2U Python backend is running."
+
+@app.route("/approve-payment", methods=["POST"])
+def approve_payment():
+    try:
+        data = request.get_json()
+        payment_id = data.get("paymentId")
+        result = pi.approve_payment(payment_id)
+        print(f"✅ Approved payment: {payment_id}")
+        return jsonify({"success": True, "approved": result})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/complete-payment", methods=["POST"])
+def complete_payment():
+    try:
+        data = request.get_json()
+        payment_id = data.get("paymentId")
+        txid = data.get("txid")
+        result = pi.complete_payment(payment_id)
+        print(f"✅ Completed payment: {payment_id}, TxID: {txid}")
+        return jsonify({"success": True, "txid": result})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/api/ping", methods=["POST", "OPTIONS"])
+def ping():
+    if request.method == "OPTIONS":
+        return '', 204
+    data = request.get_json()
+    print("📶 Ping received:", data)
+    return jsonify({"status": "ok"})
+
 @app.route("/api/a2u-test", methods=["POST"])
 def a2u_test():
     try:
