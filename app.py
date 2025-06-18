@@ -8,12 +8,12 @@ import traceback
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins=["https://chototpi.site"])
+CORS(app, origins=["https://chototpi.site"], supports_credentials=True)
 
 PI_API_KEY = os.getenv("PI_API_KEY")
 PI_API_BASE = os.getenv("PI_API_BASE")
 
-pi = PiNetwork(api_key=os.getenv("PI_API_KEY"))
+pi = PiNetwork(api_key=PI_API_KEY)
 
 @app.route("/", methods=["GET"])
 def home():
@@ -30,6 +30,7 @@ def approve_payment():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
+
 @app.route("/complete-payment", methods=["POST"])
 def complete_payment():
     try:
@@ -42,17 +43,20 @@ def complete_payment():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
-    
+
 @app.route("/api/ping", methods=["POST", "OPTIONS"])
 def ping():
     if request.method == "OPTIONS":
-        return '', 204  # Đáp lại preflight OK
+        return '', 204
     data = request.get_json()
     print("📶 Ping received:", data)
     return jsonify({"status": "ok"})
 
-@app.route("/api/a2u-test", methods=["POST"])
+@app.route("/api/a2u-test", methods=["POST", "OPTIONS"])
 def a2u_test():
+    if request.method == "OPTIONS":
+        return '', 204
+
     data = request.get_json()
     uid = data.get("uid")
     amount = data.get("amount")
