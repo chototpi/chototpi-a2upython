@@ -1,37 +1,55 @@
 import requests
 import json
 import stellar_sdk as s_sdk
+import os
 
 class PiNetwork:
     api_key = ""
-    client = ""
-    account = ""
-    base_url = ""
-    from_address = ""
-    open_payments = {}
-    network = ""
-    server = ""
     keypair = ""
+    server = ""
+    account = ""
     fee = ""
+    base_url = ""
+    open_payments = {}
+    env = ""
+    network = ""
 
-    def initialize(self, api_key, wallet_private_key, network):
+    def initialize(self, api_key, wallet_private_key, network=None):
         if not self.validate_private_seed_format(wallet_private_key):
             raise ValueError("❌ APP_PRIVATE_KEY không hợp lệ!")
-        self.api_key = api_key
-        self.load_account(wallet_private_key, network)
-        self.base_url = "https://api.minepi.com"
-        self.open_payments = {}
-        self.network = network
-        self.fee = self.server.fetch_base_fee()
 
-    def load_account(self, private_seed, network):
-        self.keypair = s_sdk.Keypair.from_secret(private_seed)
-        if network == "Pi Network":
-            horizon = "https://api.mainnet.minepi.com"
+        self.api_key = api_key
+
+        # Đọc môi trường từ biến môi trường
+        self.env = os.getenv("PI_ENV", "mainnet").lower()
+
+        # Tự động chọn base_url
+        if self.env == "testnet":
+            self.base_url = "https://api.testnet.minepi.com"
+            self.network = "Pi Testnet"
         else:
+            self.base_url = "https://api.minepi.com"
+            self.network = "Pi Network"
+
+        self.load_account(wallet_private_key)
+        self.fee = self.server.fetch_base_fee()
+        self.open_payments = {}
+
+    def load_account(self, private_seed):
+        self.keypair = s_sdk.Keypair.from_secret(private_seed)
+        if self.env == "testnet":
             horizon = "https://api.testnet.minepi.com"
+        else:
+            horizon = "https://api.mainnet.minepi.com"
         self.server = s_sdk.Server(horizon)
         self.account = self.server.load_account(self.keypair.public_key)
+
+    def validate_private_seed_format(self, seed):
+        return seed.upper().startswith("S") and len(seed) == 56
+
+    def validate_payment_data(self, data):
+        required = ["amount", "memo", "metadata", "user_uid", "identifier", "to_address"]
+        return all(k in data for k in required)
 
     def get_http_headers(self):
         return {
@@ -49,36 +67,23 @@ class PiNetwork:
             print("❌ Không thể parse JSON từ response:", response.text)
             return False
 
-    def validate_payment_data(self, data):
-        required = ["amount", "memo", "metadata", "user_uid", "identifier", "to_address"]
-        return all(k in data for k in required)
-
-    def validate_private_seed_format(self, seed):
-        return seed.upper().startswith("S") and len(seed) == 56
-
     def create_payment(self, payment_data):
         if not self.validate_payment_data(payment_data):
             print("❌ payment_data không hợp lệ.")
             return ""
 
         balances = self.server.accounts().account_id(self.keypair.public_key).call()["balances"]
-        balance_ok = False
         for bal in balances:
             if bal["asset_type"] == "native":
                 if float(payment_data["amount"]) + (float(self.fee) / 10**7) > float(bal["balance"]):
                     print("❌ Không đủ Pi để gửi.")
                     return ""
-                balance_ok = True
-                break
-
-        if not balance_ok:
-            return ""
 
         obj = json.dumps({ "payment": payment_data })
         url = f"{self.base_url}/v2/payments"
         res = requests.post(url, data=obj, json=json.loads(obj), headers=self.get_http_headers())
         parsed = self.handle_http_response(res)
-
+        
         if 'error' in parsed and 'payment' in parsed:
             identifier = parsed['payment']['identifier']
             self.open_payments[identifier] = parsed['payment']
