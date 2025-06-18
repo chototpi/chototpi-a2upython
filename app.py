@@ -8,7 +8,7 @@ import traceback
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["https://chototpi.site"])
 
 PI_API_KEY = os.getenv("PI_API_KEY")
 PI_API_BASE = os.getenv("PI_API_BASE")
@@ -18,6 +18,14 @@ pi = PiNetwork(api_key=os.getenv("PI_API_KEY"))
 @app.route("/", methods=["GET"])
 def home():
     return "✅ Pi A2U Python backend is running."
+
+@app.route("/api/ping", methods=["POST", "OPTIONS"])
+def ping():
+    if request.method == "OPTIONS":
+        return '', 204  # Đáp lại preflight OK
+    data = request.get_json()
+    print("📶 Ping received:", data)
+    return jsonify({"status": "ok"})
 
 @app.route("/api/a2u-test", methods=["POST"])
 def a2u_test():
