@@ -11,12 +11,9 @@ app = Flask(__name__)
 CORS(app)
 
 PI_API_KEY = os.getenv("PI_API_KEY")
-PI_ENV = os.getenv("PI_ENV", "sandbox")
+PI_API_BASE = os.getenv("PI_API_BASE")
 
-pi = PiNetwork(
-    api_key=PI_API_KEY,
-    env=PI_ENV
-)
+pi = PiNetwork(api_key=os.getenv("PI_API_KEY"))
 
 @app.route("/", methods=["GET"])
 def home():
