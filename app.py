@@ -24,47 +24,33 @@ def home():
 
 @app.route("/api/a2u-test", methods=["POST"])
 def a2u_test():
-    data = request.json
+    data = request.get_json()
     uid = data.get("uid")
     amount = data.get("amount")
-    memo = "a2u-test"
-
-    print("📥 Nhận A2U Request:")
-    print("🆔 UID:", uid)
-    print("💰 Amount:", amount)
-    
-    if not uid or not amount:
-        return jsonify({ "success": False, "message": "Thiếu uid hoặc amount" }), 400
 
     try:
-        pi = PiNetwork(PI_API_KEY)
-        create_res = pi.create_payment(uid, amount, memo)
-        identifier = create_res.get("identifier")
-        recipient = create_res.get("recipient")
+        payment = pi.create_payment(
+            user_uid=uid,
+            amount=amount,
+            memo="Test A2U",
+            metadata={"debug": "true"}  # bắt buộc có metadata
+        )
+        txid = pi.complete_payment(payment["identifier"])
+        return jsonify({"success": True, "txid": txid})
+    except Exception as e:
+        if hasattr(e, 'response'):
+            try:
+                print("❌ Pi error response:", e.response.json())
+                return jsonify({
+                    "success": False,
+                    "error": e.response.json()
+                })
+            except:
+                print("❌ Raw error:", str(e))
+        else:
+            print("❌ General error:", str(e))
 
-        source_account = server.load_account(APP_PUBLIC_KEY)
-        base_fee = server.fetch_base_fee()
-        timebounds = server.fetch_timebounds(180)
-
-        tx = TransactionBuilder(
-            source_account=source_account,
-            network_passphrase=network_passphrase,
-            base_fee=base_fee,
-            time_bounds=timebounds
-        ).add_text_memo(memo).append_payment_op(
-            destination=recipient,
-            amount=str(amount),
-            asset=Asset.native()
-        ).build()
-
-        keypair = Keypair.from_secret(APP_PRIVATE_KEY)
-        tx.sign(keypair)
-        tx_result = server.submit_transaction(tx)
-        txid = tx_result["id"]
-
-        pi.complete_payment(identifier, txid)
-
-        return jsonify({ "success": True, "txid": txid })
+        return jsonify({"success": False, "message": str(e)})
     except Exception as e:
         import traceback
         print("❌ Lỗi xử lý A2U:")
