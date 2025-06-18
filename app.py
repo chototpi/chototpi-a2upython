@@ -7,7 +7,7 @@ import os, traceback, time, requests
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["https://chototpi.site"], supports_credentials=True)
 
 # 🔐 Khởi tạo SDK với APP_PRIVATE_KEY và ENV
 pi = PiNetwork()
