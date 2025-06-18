@@ -58,7 +58,9 @@ def a2u_test():
         data = request.get_json()
         uid = data.get("uid")
         amount = str(data.get("amount"))
-
+        print(f"👉 ENV: {pi.env}")
+        print(f"🔗 base_url: {pi.base_url}")
+        print(f"🪪 APP_PUBLIC_KEY: {pi.keypair.public_key}")
         identifier = f"a2u-{uid[:6]}-{int(time.time())}"
         to_address = os.getenv("APP_PUBLIC_KEY")  # hoặc dynamic nếu bạn cần
 
