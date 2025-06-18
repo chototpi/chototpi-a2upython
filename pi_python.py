@@ -149,8 +149,16 @@ class PiNetwork:
         res = requests.post(url, data=obj, json=json.loads(obj), headers=self.get_http_headers())
         return self.handle_http_response(res)
     
-    def get_user_wallet_address(uid):
+    def get_http_headers(self):
+        return {
+            "Authorization": "Key " + self.api_key,
+            "Content-Type": "application/json"
+        }
+
+    def get_user_wallet_address(self, uid):
         url = f"{self.base_url}/v2/users/{uid}"
         res = requests.get(url, headers=self.get_http_headers())
+        if res.status_code != 200:
+            raise ValueError(f"❌ Không tìm thấy UID: {uid}")
         data = res.json()
         return data["user"]["wallet"]["public_key"]
