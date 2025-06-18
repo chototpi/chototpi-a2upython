@@ -1,9 +1,9 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from pi_python import PiNetwork
-from stellar_sdk import Server, TransactionBuilder, Network, Keypair, Asset
 from dotenv import load_dotenv
 import os
+import traceback
 
 load_dotenv()
 
@@ -11,12 +11,14 @@ app = Flask(__name__)
 CORS(app)
 
 PI_API_KEY = os.getenv("PI_API_KEY")
-APP_PUBLIC_KEY = os.getenv("APP_PUBLIC_KEY")
-APP_PRIVATE_KEY = os.getenv("APP_PRIVATE_KEY")
+PI_APP_ID = os.getenv("PI_APP_ID")
+PI_ENV = os.getenv("PI_ENV", "sandbox")
 
-BASE_URL = "https://api.testnet.minepi.com"
-server = Server(horizon_url=BASE_URL)
-network_passphrase = "Pi Testnet"
+pi = PiNetwork(
+    api_key=PI_API_KEY,
+    app_id=PI_APP_ID,
+    env=PI_ENV
+)
 
 @app.route("/", methods=["GET"])
 def home():
@@ -28,34 +30,26 @@ def a2u_test():
     uid = data.get("uid")
     amount = data.get("amount")
 
+    print(f"📥 Gửi A2U cho UID: {uid}, Amount: {amount}")
+
     try:
         payment = pi.create_payment(
             user_uid=uid,
             amount=amount,
             memo="Test A2U",
-            metadata={"debug": "true"}  # bắt buộc có metadata
+            metadata={"debug": "true"}
         )
         txid = pi.complete_payment(payment["identifier"])
         return jsonify({"success": True, "txid": txid})
     except Exception as e:
+        traceback.print_exc()
         if hasattr(e, 'response'):
             try:
                 print("❌ Pi error response:", e.response.json())
-                return jsonify({
-                    "success": False,
-                    "error": e.response.json()
-                })
+                return jsonify({"success": False, "error": e.response.json()})
             except:
-                print("❌ Raw error:", str(e))
-        else:
-            print("❌ General error:", str(e))
-
-        return jsonify({"success": False, "message": str(e)})
-    except Exception as e:
-        import traceback
-        print("❌ Lỗi xử lý A2U:")
-        traceback.print_exc()  # in full stack trace vào log Render
+                pass
         return jsonify({"success": False, "message": str(e)}), 500
-    
+
 if __name__ == "__main__":
     app.run(debug=True)
