@@ -143,8 +143,8 @@ class PiNetwork:
         res = requests.post(url, headers=self.get_http_headers())
         return self.handle_http_response(res)
 
-    def complete_payment(self, identifier, txid):
-        obj = json.dumps({ "txid": txid }) if txid else "{}"
-        url = f"{self.base_url}/v2/payments/{identifier}/complete"
+    def complete_payment(self, payment_id, txid):
+        obj = json.dumps({"txid": txid})
+        url = f"{self.base_url}/v2/payments/{payment_id}/complete"
         res = requests.post(url, data=obj, json=json.loads(obj), headers=self.get_http_headers())
-        self.handle_http_response(res)
+        return self.handle_http_response(res)
