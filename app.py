@@ -20,6 +20,15 @@ pi.initialize(
 def home():
     return "✅ Pi A2U Python backend is running."
 
+@app.route("/api/ping", methods=["POST", "OPTIONS"])
+def ping():
+    if request.method == "OPTIONS":
+        # Trả về phản hồi 200 OK cho preflight
+        return '', 200
+    data = request.get_json()
+    print("📶 Ping received:", data)
+    return jsonify({"status": "ok"})
+
 @app.route("/approve-payment", methods=["POST"])
 def approve_payment():
     try:
