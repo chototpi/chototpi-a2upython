@@ -14,22 +14,22 @@ class PiNetwork:
     env = ""
     network = ""
 
-    def initialize(self, api_key, wallet_private_key, network=None):
+    def initialize(self, api_key, wallet_private_key, network="mainnet"):
         if not self.validate_private_seed_format(wallet_private_key):
             raise ValueError("❌ APP_PRIVATE_KEY không hợp lệ!")
 
         self.api_key = api_key
-        self.env = os.getenv("PI_ENV", "mainnet").lower()
-        if self.env == "testnet":
-            self.base_url = "https://api.testnet.minepi.com"
-            self.network = "Pi Testnet"
-        else:
+
+        if network.lower() == "mainnet":
             self.base_url = "https://api.minepi.com"
             self.network = "Pi Network"
+        else:
+            self.base_url = "https://api.testnet.minepi.com"
+            self.network = "Pi Testnet"
 
-        self.load_account(wallet_private_key)
-        self.fee = self.server.fetch_base_fee()
+        self.load_account(wallet_private_key, self.network)
         self.open_payments = {}
+        self.fee = self.server.fetch_base_fee()
 
     def load_account(self, private_seed):
         self.keypair = s_sdk.Keypair.from_secret(private_seed)

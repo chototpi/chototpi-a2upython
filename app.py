@@ -13,7 +13,8 @@ CORS(app, origins=["https://chototpi.site"], supports_credentials=True)
 pi = PiNetwork()
 pi.initialize(
     api_key=os.getenv("PI_API_KEY"),
-    wallet_private_key=os.getenv("APP_PRIVATE_KEY")
+    wallet_private_key=os.getenv("APP_PRIVATE_KEY"),
+    network=os.getenv("PI_ENV", "mainnet")  # truyền "mainnet" hoặc "testnet"
 )
 
 @app.route("/", methods=["GET"])
