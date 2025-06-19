@@ -31,12 +31,14 @@ class PiNetwork:
         self.open_payments = {}
         self.fee = self.server.fetch_base_fee()
 
-    def load_account(self, private_seed):
+    def load_account(self, private_seed, network):
         self.keypair = s_sdk.Keypair.from_secret(private_seed)
-        if self.env == "testnet":
-            horizon = "https://api.testnet.minepi.com"
-        else:
+
+        if network.lower() == "mainnet" or network == "Pi Network":
             horizon = "https://api.mainnet.minepi.com"
+        else:
+            horizon = "https://api.testnet.minepi.com"
+
         self.server = s_sdk.Server(horizon)
         self.account = self.server.load_account(self.keypair.public_key)
 
