@@ -8,6 +8,7 @@ class PiNetwork:
         self.keypair = None
         self.server = None
         self.account = None
+        self.mainnet_base_url = "https://api.minepi.com"
         self.base_url = ""
         self.env = ""
         self.network = ""
@@ -83,7 +84,8 @@ class PiNetwork:
         return res.json()
 
     def get_user_wallet_address(self, uid):
-        url = f"{self.platform_url}/v2/users/{uid}"  # 🟢 Luôn dùng mainnet
+    # ⚠️ Gọi luôn qua mainnet
+        url = f"https://api.minepi.com/v2/users/{uid}"
         res = requests.get(url, headers=self.get_http_headers())
         if res.status_code != 200:
             raise ValueError(f"❌ Không tìm thấy UID: {uid}")
