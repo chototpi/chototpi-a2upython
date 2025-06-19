@@ -30,7 +30,7 @@ def verify_user():
             return jsonify({"error": "Thiếu accessToken"}), 400
 
         headers = {"Authorization": f"Bearer {access_token}"}
-        url = "https://api.minepi.com/v2/me"  # Luôn dùng mainnet để xác minh user
+        url = f"https://api.minepi.com/v2/me"  # 🟢 luôn gọi từ mainnet
         response = requests.get(url, headers=headers)
 
         if response.status_code != 200:
@@ -38,7 +38,8 @@ def verify_user():
             return jsonify({"error": "User không hợp lệ"}), 401
 
         user_data = response.json()
-        print(f"✅ Xác minh UID: {user_data.get('uid')}")
+        uid = user_data["uid"]
+        print(f"✅ Xác minh UID: {uid}")
         return jsonify({"success": True, "user": user_data})
     except Exception as e:
         traceback.print_exc()
