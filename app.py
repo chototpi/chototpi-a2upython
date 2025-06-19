@@ -20,6 +20,31 @@ pi.initialize(
 def home():
     return "✅ Pi A2U Python backend is running."
 
+@app.route("/api/verify-user", methods=["POST"])
+def verify_user():
+    try:
+        data = request.get_json()
+        access_token = data.get("accessToken")
+        if not access_token:
+            return jsonify({"error": "Thiếu accessToken"}), 400
+
+        headers = {"Authorization": f"Bearer {access_token}"}
+        url = f"{pi.base_url}/v2/me"
+        response = requests.get(url, headers=headers)
+
+        if response.status_code != 200:
+            print("❌ Xác minh user thất bại:", response.text)
+            return jsonify({"error": "User không hợp lệ"}), 401
+
+        user_data = response.json()
+        uid = user_data["user"]["uid"]
+        print(f"✅ Xác minh UID: {uid}")
+        print("✅ Xác minh user thành công:", user_data)
+        return jsonify({"success": True, "user": user_data})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+    
 @app.route("/api/ping", methods=["POST", "OPTIONS"])
 def ping():
     if request.method == "OPTIONS":
