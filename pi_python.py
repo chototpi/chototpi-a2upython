@@ -29,7 +29,8 @@ class PiNetwork:
             self.network = "Pi Testnet"
 
         self.keypair = s_sdk.Keypair.from_secret(wallet_private_key)
-        self.server = s_sdk.Server(horizon_url=self.base_url)
+        horizon_url = "https://api.testnet.minepi.com" if self.env == "testnet" else "https://api.testnet.minepi.com"
+        self.server = s_sdk.Server(horizon_url=horizon_url)
         self.account = self.server.load_account(self.keypair.public_key)
         self.fee = self.server.fetch_base_fee()
 
