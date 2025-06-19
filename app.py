@@ -29,19 +29,8 @@ def verify_user():
         if not access_token:
             return jsonify({"error": "Thiếu accessToken"}), 400
 
-        headers = {"Authorization": f"Bearer {access_token}"}
-
-        # ⚠️ Gán cứng URL testnet ở đây để xử lý tạm thời
-        url = "https://api.minepi.com/v2/me"
-
-        response = requests.get(url, headers=headers)
-
-        if response.status_code != 200:
-            print("❌ Xác minh user thất bại:", response.text)
-            return jsonify({"error": "User không hợp lệ"}), 401
-
-        user_data = response.json()
-        uid = user_data["user"]["uid"]
+        user_data = pi.verify_user(access_token)
+        uid = user_data["uid"]
         print(f"✅ Xác minh UID: {uid}")
         return jsonify({"success": True, "user": user_data})
     except Exception as e:

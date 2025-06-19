@@ -14,24 +14,36 @@ class PiNetwork:
     env = ""
     network = ""
 
-    def initialize(self, api_key, wallet_private_key, env="testnet"):
+    def initialize(self, api_key, wallet_private_key, env="mainnet"):
         if not self.validate_private_seed_format(wallet_private_key):
             raise ValueError("❌ APP_PRIVATE_KEY không hợp lệ!")
 
         self.api_key = api_key
-        self.env = env.lower()
-
-        # ✅ Gán base_url và network chuẩn theo environment
-        if self.env == "mainnet":
+        self.env = env
+        if env == "mainnet":
             self.base_url = "https://api.minepi.com"
+            horizon = "https://api.mainnet.minepi.com"
             self.network = "Pi Network"
         else:
             self.base_url = "https://api.testnet.minepi.com"
+            horizon = "https://api.testnet.minepi.com"
             self.network = "Pi Testnet"
 
-        self.load_account(wallet_private_key)  # Chỉ cần truyền private_key
-        self.open_payments = {}
+        self.keypair = s_sdk.Keypair.from_secret(wallet_private_key)
+        self.server = s_sdk.Server(horizon)
+        self.account = self.server.load_account(self.keypair.public_key)
         self.fee = self.server.fetch_base_fee()
+
+    def verify_user(self, access_token):
+        url = "https://api.minepi.com/v2/me"  # Luôn dùng mainnet
+        headers = {"Authorization": f"Bearer {access_token}"}
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            raise ValueError("❌ Không xác minh được người dùng")
+        return response.json()
+    
+    def get_http_headers(self):
+        return {'Authorization': "Key " + self.api_key, "Content-Type": "application/json"}
 
     def load_account(self, private_seed):
         self.keypair = s_sdk.Keypair.from_secret(private_seed)
