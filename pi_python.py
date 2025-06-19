@@ -29,8 +29,7 @@ class PiNetwork:
             self.network = "Pi Testnet"
 
         self.keypair = s_sdk.Keypair.from_secret(wallet_private_key)
-        horizon_url = "https://api.testnet.minepi.com" if self.env == "testnet" else "https://api.testnet.minepi.com"
-        self.server = s_sdk.Server(horizon_url=horizon_url)
+        self.server = s_sdk.Server(horizon_url=self.base_url)
         self.account = self.server.load_account(self.keypair.public_key)
         self.fee = self.server.fetch_base_fee()
 
@@ -80,12 +79,3 @@ class PiNetwork:
         url = f"{self.base_url}/v2/payments/{payment_id}/approve"
         res = requests.post(url, headers=self.get_http_headers(), json={})
         return res.json()
-
-    def get_user_wallet_address(self, uid):
-        # 🔄 LUÔN dùng API MAINNET để lấy địa chỉ ví người dùng
-        url = f"https://api.minepi.com/v2/users/{uid}"
-        res = requests.get(url, headers=self.get_http_headers())
-        if res.status_code != 200:
-            raise ValueError(f"❌ Không tìm thấy UID: {uid}")
-        data = res.json()
-        return data["user"]["wallet"]["public_key"]
