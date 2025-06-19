@@ -30,6 +30,7 @@ class PiNetwork:
         self.load_account(wallet_private_key, self.network)
         self.open_payments = {}
         self.fee = self.server.fetch_base_fee()
+        self.env = network.lower()
 
     def load_account(self, private_seed, network):
         self.keypair = s_sdk.Keypair.from_secret(private_seed)
