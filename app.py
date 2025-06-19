@@ -25,12 +25,15 @@ def home():
 def verify_user():
     try:
         data = request.get_json()
-        access_token = data.get("accessToken") or data.get("access_token")
+        access_token = data.get("accessToken")
         if not access_token:
             return jsonify({"error": "Thiếu accessToken"}), 400
 
         headers = {"Authorization": f"Bearer {access_token}"}
-        url = f"{pi.base_url}/v2/me"
+
+        # ⚠️ Gán cứng URL testnet ở đây để xử lý tạm thời
+        url = "https://api.testnet.minepi.com/v2/me"
+
         response = requests.get(url, headers=headers)
 
         if response.status_code != 200:
@@ -38,9 +41,8 @@ def verify_user():
             return jsonify({"error": "User không hợp lệ"}), 401
 
         user_data = response.json()
-        uid = user_data["uid"] or user_data["user"]["uid"]
+        uid = user_data["user"]["uid"]
         print(f"✅ Xác minh UID: {uid}")
-        print("✅ Xác minh user thành công:", user_data)
         return jsonify({"success": True, "user": user_data})
     except Exception as e:
         traceback.print_exc()
