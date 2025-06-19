@@ -32,7 +32,7 @@ def verify_user():
         headers = {"Authorization": f"Bearer {access_token}"}
 
         # ⚠️ Gán cứng URL testnet ở đây để xử lý tạm thời
-        url = "https://api.testnet.minepi.com/v2/me"
+        url = "https://api.minepi.com/v2/me"
 
         response = requests.get(url, headers=headers)
 
