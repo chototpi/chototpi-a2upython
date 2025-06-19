@@ -14,7 +14,7 @@ class PiNetwork:
     env = ""
     network = ""
 
-    def initialize(self, api_key, wallet_private_key, env="mainnet"):
+    def initialize(self, api_key, wallet_private_key, env="testnet"):
         if not self.validate_private_seed_format(wallet_private_key):
             raise ValueError("❌ APP_PRIVATE_KEY không hợp lệ!")
 
