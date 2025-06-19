@@ -25,7 +25,7 @@ def home():
 def verify_user():
     try:
         data = request.get_json()
-        access_token = data.get("accessToken")
+        access_token = data.get("authResult", {}).get("accessToken")
         if not access_token:
             return jsonify({"error": "Thiếu accessToken"}), 400
 
