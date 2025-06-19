@@ -25,7 +25,7 @@ def home():
 def verify_user():
     try:
         data = request.get_json()
-        access_token = data.get("authResult", {}).get("accessToken")
+        access_token = data.get("accessToken") or data.get("access_token")
         if not access_token:
             return jsonify({"error": "Thiếu accessToken"}), 400
 
@@ -38,7 +38,7 @@ def verify_user():
             return jsonify({"error": "User không hợp lệ"}), 401
 
         user_data = response.json()
-        uid = user_data["user"]["uid"]
+        uid = user_data["uid"] or user_data["user"]["uid"]
         print(f"✅ Xác minh UID: {uid}")
         print("✅ Xác minh user thành công:", user_data)
         return jsonify({"success": True, "user": user_data})
