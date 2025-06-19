@@ -8,7 +8,6 @@ class PiNetwork:
         self.keypair = None
         self.server = None
         self.account = None
-        self.mainnet_base_url = "https://api.minepi.com"
         self.base_url = ""
         self.env = ""
         self.network = ""
@@ -23,16 +22,14 @@ class PiNetwork:
         self.env = env.lower()
 
         if self.env == "mainnet":
-            self.horizon_url = "https://api.minepi.com"
-            self.platform_url = "https://api.minepi.com"
+            self.base_url = "https://api.minepi.com"
             self.network = "Pi Network"
         else:
-            self.horizon_url = "https://api.testnet.minepi.com"
-            self.platform_url = "https://api.minepi.com"  # ⚠ luôn gọi từ mainnet
+            self.base_url = "https://api.testnet.minepi.com"
             self.network = "Pi Testnet"
 
         self.keypair = s_sdk.Keypair.from_secret(wallet_private_key)
-        self.server = s_sdk.Server(horizon_url=self.horizon_url)
+        self.server = s_sdk.Server(horizon_url=self.base_url)
         self.account = self.server.load_account(self.keypair.public_key)
         self.fee = self.server.fetch_base_fee()
 
@@ -84,7 +81,7 @@ class PiNetwork:
         return res.json()
 
     def get_user_wallet_address(self, uid):
-    # ⚠️ Gọi luôn qua mainnet
+        # 🔄 LUÔN dùng API MAINNET để lấy địa chỉ ví người dùng
         url = f"https://api.minepi.com/v2/users/{uid}"
         res = requests.get(url, headers=self.get_http_headers())
         if res.status_code != 200:
