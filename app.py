@@ -76,11 +76,11 @@ def a2u_direct():
         data = request.get_json()
         uid = data.get("uid")
         amount = str(data.get("amount"))
-        to_wallet = data.get("wallet")
+        to_wallet = data.get("to_wallet")
 
         print(f"🧾 Yêu cầu A2U cho UID: {uid}, amount: {amount}, to_wallet: {to_wallet}")
 
-        if not to_wallet:
+        if not to_wallet or not to_wallet.startswith("G"):
             return jsonify({"success": False, "message": "❌ Địa chỉ ví không hợp lệ hoặc chưa được nhập."}), 400
 
         identifier = f"a2u-{uid[:6]}-{int(time.time())}"
