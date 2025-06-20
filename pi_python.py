@@ -61,12 +61,12 @@ class PiNetwork:
     def submit_payment(self, payment_id, _):
         payment = self.open_payments[payment_id]
 
-        if not self.account:
-            raise ValueError("❌ Tài khoản nguồn (app) chưa được load. Không thể gửi giao dịch.")
+        # 🆕 Always refresh account to avoid tx_bad_seq
+        account = self.server.load_account(self.keypair.public_key)
 
         transaction = (
             s_sdk.TransactionBuilder(
-                source_account=self.account,
+                source_account=account,
                 network_passphrase=self.network,
                 base_fee=self.fee,
             )
