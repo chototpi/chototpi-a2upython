@@ -76,16 +76,20 @@ def a2u_direct():
         data = request.get_json()
         uid = data.get("uid")
         amount = str(data.get("amount"))
-        to_wallet = data.get("to_wallet")
+        to_wallet = data.get("wallet")
 
         print(f"🧾 Yêu cầu A2U cho UID: {uid}, amount: {amount}, to_wallet: {to_wallet}")
 
+        if not to_wallet:
+            return jsonify({"success": False, "message": "❌ Địa chỉ ví không hợp lệ hoặc chưa được nhập."}), 400
+
         identifier = f"a2u-{uid[:6]}-{int(time.time())}"
+
         payment_data = {
             "user_uid": uid,
             "amount": amount,
             "memo": identifier,
-            "metadata": {"source": "manual-wallet"},
+            "metadata": {"source": "a2u"},
             "identifier": identifier,
             "from_address": pi.keypair.public_key,
             "to_address": to_wallet,
@@ -97,7 +101,6 @@ def a2u_direct():
         pi.complete_payment(payment_id, txid)
 
         return jsonify({"success": True, "txid": txid})
-
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
