@@ -84,7 +84,7 @@ def a2u_direct():
             return jsonify({"success": False, "message": "❌ Địa chỉ ví không hợp lệ hoặc chưa được nhập."}), 400
 
         identifier = f"a2u-{uid[:6]}-{int(time.time())}"
-        memo = "Thanh toán từ Chợ Tốt Pi"
+        memo = "Rút từ Chợ Tốt Pi"
         payment_data = {
             "user_uid": uid,
             "amount": amount,
