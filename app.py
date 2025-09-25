@@ -3,9 +3,23 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from pi_python import PiNetwork
 import os, traceback, time, requests
-import sqlite3
 import json
+import mysql.connector
+from mysql.connector import Error
+import os
 
+def get_db_connection():
+    try:
+        conn = mysql.connector.connect(
+            host=os.getenv("localhost"),
+            user=os.getenv("h6c7d2f7b2_chototpi", "root"),
+            password=os.getenv("DB_PASSWORD"),
+            database=os.getenv("h6c7d2f7b2_chototpi")
+        )
+        return conn
+    except Error as e:
+        print("❌ Lỗi kết nối MySQL:", e)
+        return None
 load_dotenv()
 
 app = Flask(__name__)
