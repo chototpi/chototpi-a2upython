@@ -5,21 +5,16 @@ from pi_python import PiNetwork
 import os, traceback, time, requests
 import json
 import mysql.connector
-from mysql.connector import Error
-import os
 
 def get_db_connection():
-    try:
-        conn = mysql.connector.connect(
-            host=os.getenv("localhost"),
-            user=os.getenv("h6c7d2f7b2_chototpi", "root"),
-            password=os.getenv("DB_PASSWORD"),
-            database=os.getenv("h6c7d2f7b2_chototpi")
-        )
-        return conn
-    except Error as e:
-        print("❌ Lỗi kết nối MySQL:", e)
-        return None
+    conn = mysql.connector.connect(
+        host=os.getenv("DB_HOST"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        database=os.getenv("DB_NAME"),
+        port=int(os.getenv("DB_PORT", 3306))
+    )
+    return conn
 load_dotenv()
 
 app = Flask(__name__)
@@ -40,26 +35,6 @@ def get_db_connection():
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
-
-def init_db():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS payments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        payment_id TEXT UNIQUE,
-        identifier TEXT,
-        uid TEXT,
-        amount TEXT,
-        status TEXT,
-        txid TEXT,
-        created_at INTEGER,
-        updated_at INTEGER,
-        raw_response TEXT
-    );
-    """)
-    conn.commit()
-    conn.close()
 
 def save_payment(payment_id, identifier, uid, amount, status, raw_response):
     conn = get_db_connection()
