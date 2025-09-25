@@ -18,7 +18,7 @@ pi.initialize(
     env=os.getenv("PI_ENV", "testnet")
 )
 
-# ✅ Tạo payment
+# ✅ Tạo payment (mock cho testnet)
 @app.route("/api/create-payment", methods=["POST"])
 def create_payment():
     try:
@@ -29,11 +29,9 @@ def create_payment():
         if not uid and not username:
             return jsonify({"success": False, "message": "Thiếu uid hoặc username"}), 400
 
-        # Fake payment_id (mock)
         identifier = uid or username
         payment_id = f"mock_{identifier}_{int(time.time())}"
 
-        # Lưu DB
         record = {
             "payment_id": payment_id,
             "uid": uid,
@@ -51,7 +49,7 @@ def create_payment():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-# ✅ Approve payment (chỉ admin mới gọi)
+# ✅ Approve payment
 @app.route("/api/approve-payment", methods=["POST"])
 def approve_payment():
     try:
@@ -61,7 +59,7 @@ def approve_payment():
         if not payment_id:
             return jsonify({"error": "Thiếu payment_id"}), 400
 
-        # Mock approve (vì testnet)
+        # Mock approve (testnet)
         result = {"success": True, "payment_id": payment_id, "status": "approved"}
         update_payment_status(payment_id, "approved")
 
@@ -71,7 +69,7 @@ def approve_payment():
         return jsonify({"error": str(e)}), 500
 
 
-# ✅ Complete payment (người dùng submit txid)
+# ✅ Complete payment
 @app.route("/api/complete-payment", methods=["POST"])
 def complete_payment():
     try:
@@ -82,7 +80,7 @@ def complete_payment():
         if not payment_id or not txid:
             return jsonify({"error": "Thiếu payment_id hoặc txid"}), 400
 
-        # Mock complete (vì testnet)
+        # Mock complete (testnet)
         result = {"success": True, "payment_id": payment_id, "txid": txid, "status": "completed"}
         update_payment_status(payment_id, "completed", txid)
 
@@ -92,7 +90,7 @@ def complete_payment():
         return jsonify({"error": str(e)}), 500
 
 
-# ✅ Xem thông tin payment (user hoặc admin)
+# ✅ Lấy thông tin payment
 @app.route("/api/payment/<payment_id>", methods=["GET"])
 def get_payment(payment_id):
     try:
@@ -100,9 +98,21 @@ def get_payment(payment_id):
         if not payment:
             return jsonify({"error": "Payment không tồn tại"}), 404
 
-        # Convert ObjectId về string cho frontend
         payment["_id"] = str(payment["_id"])
         return jsonify(payment)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+# ✅ API check trạng thái payment (cho frontend polling)
+@app.route("/api/payment-status/<payment_id>", methods=["GET"])
+def payment_status(payment_id):
+    try:
+        payment = get_payment_by_id(payment_id)
+        if not payment:
+            return jsonify({"error": "Payment không tồn tại"}), 404
+        return jsonify({"payment_id": payment_id, "status": payment.get("status")})
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
