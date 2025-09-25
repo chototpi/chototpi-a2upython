@@ -1,13 +1,14 @@
 # db.py
 import os
 from pymongo import MongoClient
+from dotenv import load_dotenv
 
-# 🔑 Kết nối MongoDB
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-DB_NAME = os.getenv("DB_NAME", "chototpi")
+load_dotenv()
 
-client = MongoClient(MONGO_URI)
-db = client[DB_NAME]
+mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017/chototpi")
+mongo_client = MongoClient(mongo_uri)
+db = mongo_client.get_database()
+payments_collection = db["payments"]
 
 # ✅ Lưu payment
 def save_payment(payment_data):
