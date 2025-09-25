@@ -52,7 +52,7 @@ def save_payment(payment_id, identifier, uid, amount, status, raw_response):
     cur = conn.cursor()
     now = int(time.time())
     cur.execute("""
-        INSERT OR REPLACE INTO payments(payment_id, identifier, uid, amount, status, created_at, updated_at, raw_response)
+        INSERT OR REPLACE INTO payment_data(payment_id, identifier, uid, amount, status, created_at, updated_at, raw_response)
         VALUES (?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM payments WHERE payment_id = ?), ?), ?, ?)
     """, (payment_id, identifier, uid, amount, status, payment_id, now, now, json.dumps(raw_response)))
     conn.commit()
