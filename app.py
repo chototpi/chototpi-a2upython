@@ -110,54 +110,46 @@ def a2u_direct():
 def check_wallet():
     try:
         data = request.get_json()
-        address = data.get("address", "").strip()
+        address = data.get("address")
 
         if not address:
             return jsonify({"success": False, "message": "❌ Thiếu địa chỉ ví"}), 400
 
-        # ✅ Nếu địa chỉ bắt đầu bằng M → bỏ qua check Mainnet
-        if address.startswith("M"):
+        # ✅ Convert M → G nếu cần
+        g_address = None
+        try:
+            if address.startswith("G"):
+                g_address = address
+            elif address.startswith("M"):
+                muxed = MuxedAccount.from_account(address)
+                g_address = muxed.account_id
+            else:
+                return jsonify({"success": False, "message": "❌ Địa chỉ không hợp lệ"}), 400
+        except Exception as e:
+            return jsonify({"success": False, "message": f"❌ Lỗi convert M→G: {str(e)}"}), 400
+
+        # ✅ Gọi Horizon Mainnet check ví
+        url = f"https://api.mainnet.minepi.com/accounts/{g_address}"
+        r = requests.get(url)
+        if r.status_code == 200:
             return jsonify({
                 "success": True,
                 "exists": True,
-                "address": address,
-                "message": "⚠️ Ví M-address, bỏ qua kiểm tra Mainnet"
+                "address": g_address,
+                "message": "✅ Ví tồn tại trên mainnet"
             })
-
-        # ✅ Nếu G-address → check Mainnet
-        if address.startswith("G"):
-            g_address = address
+        elif r.status_code == 404:
+            return jsonify({
+                "success": True,
+                "exists": False,
+                "address": g_address,
+                "message": "⚠️ Ví chưa kích hoạt trên mainnet"
+            })
         else:
-            return jsonify({"success": False, "message": "❌ Địa chỉ không hợp lệ"}), 400
-
-        try:
-            url = f"https://api.mainnet.minepi.com/accounts/{g_address}"
-            r = requests.get(url, timeout=5)  # timeout 5 giây
-            if r.status_code == 200:
-                return jsonify({
-                    "success": True,
-                    "exists": True,
-                    "address": g_address,
-                    "message": "✅ Ví tồn tại trên Mainnet"
-                })
-            elif r.status_code == 404:
-                return jsonify({
-                    "success": True,
-                    "exists": False,
-                    "address": g_address,
-                    "message": "⚠️ Ví chưa kích hoạt trên Mainnet"
-                })
-            else:
-                return jsonify({
-                    "success": False,
-                    "message": f"❌ Lỗi Horizon: {r.status_code}"
-                })
-        except requests.exceptions.RequestException as e:
             return jsonify({
                 "success": False,
-                "exists": False,
-                "message": f"❌ Lỗi kết nối Horizon: {str(e)}"
-            })
+                "message": f"❌ Lỗi khi kiểm tra ví: {r.status_code}"
+            }), 500
 
     except Exception as e:
         traceback.print_exc()
