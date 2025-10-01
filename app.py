@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 from pi_python import PiNetwork
+from stellar_sdk import MuxedAccount, StrKey
 import os, traceback, time, requests
 
 load_dotenv()
@@ -105,6 +106,55 @@ def a2u_direct():
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
 
+@app.route("/api/check-wallet", methods=["POST"])
+def check_wallet():
+    try:
+        data = request.get_json()
+        address = data.get("address")
+
+        if not address:
+            return jsonify({"success": False, "message": "❌ Thiếu địa chỉ ví"}), 400
+
+        # ✅ Convert M → G nếu cần
+        g_address = None
+        try:
+            if address.startswith("G"):
+                g_address = address
+            elif address.startswith("M"):
+                muxed = MuxedAccount.from_account(address)
+                g_address = muxed.account_id
+            else:
+                return jsonify({"success": False, "message": "❌ Địa chỉ không hợp lệ"}), 400
+        except Exception as e:
+            return jsonify({"success": False, "message": f"❌ Lỗi convert M→G: {str(e)}"}), 400
+
+        # ✅ Gọi Horizon Mainnet check ví
+        url = f"https://api.mainnet.minepi.com/accounts/{g_address}"
+        r = requests.get(url)
+        if r.status_code == 200:
+            return jsonify({
+                "success": True,
+                "exists": True,
+                "address": g_address,
+                "message": "✅ Ví tồn tại trên mainnet"
+            })
+        elif r.status_code == 404:
+            return jsonify({
+                "success": True,
+                "exists": False,
+                "address": g_address,
+                "message": "⚠️ Ví chưa kích hoạt trên mainnet"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": f"❌ Lỗi khi kiểm tra ví: {r.status_code}"
+            }), 500
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500
+        
 @app.route("/api/a2u-test", methods=["POST"])
 def a2u_test():
     try:
