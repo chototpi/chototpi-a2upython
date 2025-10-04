@@ -151,7 +151,7 @@ def a2u_send():
         # submit to horizon
         try:
             response = server.submit_transaction(tx)
-            except Exception as e:
+        except Exception as e:
             traceback.print_exc()
             return jsonify({"success": False, "message": f"Submit failed: {str(e)}"}), 502
 
