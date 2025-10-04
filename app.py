@@ -21,6 +21,8 @@ from stellar_sdk import (
 )
 from stellar_sdk.operation import Payment
 
+import stellar_sdk
+print("Stellar SDK version:", stellar_sdk.__version__)
 load_dotenv()
 
 # --------- Config ----------
