@@ -7,8 +7,19 @@ from decimal import Decimal, ROUND_DOWN
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
-from stellar_sdk import Keypair, Server, TransactionBuilder, Network, Asset, MuxedAccount
 from pymongo import MongoClient
+
+# Stellar SDK (v12.x)
+from stellar_sdk import (
+    Keypair,
+    Server,
+    TransactionBuilder,
+    Network,
+    Asset,
+    MuxedAccount,
+    Memo
+)
+from stellar_sdk.operation import Payment
 
 load_dotenv()
 
