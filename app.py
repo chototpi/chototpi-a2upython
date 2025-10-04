@@ -13,7 +13,7 @@ CORS(app, origins=["https://testnet.chototpi.site"], supports_credentials=True)
 # 🔐 Khởi tạo SDK Pi
 pi = PiNetwork()
 pi.initialize(
-    api_key=os.getenv("PI_API_KEY"),
+    api_key=os.getenv("PI_API_MNPOP"),
     wallet_private_key=os.getenv("APP_PRIVATE_KEY"),
     env=os.getenv("PI_ENV", "testnet")
 )
