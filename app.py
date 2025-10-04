@@ -9,7 +9,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
-# Stellar SDK (v12.x)
+# ---------- Stellar SDK ----------
 from stellar_sdk import (
     Keypair,
     Server,
@@ -17,27 +17,27 @@ from stellar_sdk import (
     Network,
     Asset,
     MuxedAccount,
-    Memo
+    Memo,
+    Payment,   # ✅ import Payment TRỰC TIẾP từ stellar_sdk
 )
-from stellar_sdk.operation import Payment
 
 import stellar_sdk
-print("Stellar SDK version:", stellar_sdk.__version__)
-load_dotenv()
+print("✅ Stellar SDK version:", stellar_sdk.__version__)
 
-# --------- Config ----------
-APP_PRIVATE_KEY = os.getenv("APP_PRIVATE_KEY")  # S... private key (Mainnet)
+# ---------- Config ----------
+load_dotenv()
+APP_PRIVATE_KEY = os.getenv("APP_PRIVATE_KEY")
 if not APP_PRIVATE_KEY:
     raise RuntimeError("Environment variable APP_PRIVATE_KEY is required")
 
 HORIZON_URL = os.getenv("HORIZON_URL", "https://api.mainnet.minepi.com")
-NETWORK_PASSPHRASE = os.getenv("NETWORK_PASSPHRASE", "Pi Mainnet")  # Pi Mainnet passphrase
+NETWORK_PASSPHRASE = os.getenv("NETWORK_PASSPHRASE", "Pi Mainnet")
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 DB_NAME = os.getenv("A2U_DB", "payofpi")
 
-# --------- Init ----------
+# ---------- Init ----------
 app = Flask(__name__)
-CORS(app, origins="*", supports_credentials=True)  # thay bằng domain production của bạn
+CORS(app, origins="*", supports_credentials=True)
 
 server = Server(horizon_url=HORIZON_URL)
 keypair = Keypair.from_secret(APP_PRIVATE_KEY)
@@ -45,44 +45,31 @@ app_public = keypair.public_key
 
 mongo = MongoClient(MONGO_URI)
 db = mongo[DB_NAME]
-a2u_coll = db["a2u_transactions"]  # collection ghi log
+a2u_coll = db["a2u_transactions"]
 
-# helper: format amount to 7 decimals (Pi uses 7 decimals in your stack)
+# ---------- Helpers ----------
 def format_amount(amount):
-    # Accept string or numeric; return string with at most 7 decimals (rounded down)
     d = Decimal(str(amount)).quantize(Decimal("0.0000001"), rounding=ROUND_DOWN)
-    return format(d, 'f')
+    return format(d, "f")
 
-# helper: convert muxed M -> base G
-def convert_muxed_to_g(address):
-    # handle already G
-    if not isinstance(address, str):
-        raise ValueError("address must be string")
+def convert_muxed_to_g(address: str):
     if address.startswith("G"):
         return address
     if address.startswith("M"):
-        # stellar_sdk.MuxedAccount.from_account expects a muxed string like 'M...'
         mux = MuxedAccount.from_account(address)
-        # .account_id gives base G address
         return mux.account_id
     raise ValueError("Unsupported address format")
 
-# helper: check account exists on horizon mainnet
 def account_exists_on_mainnet(g_address):
     try:
         server.accounts().account_id(g_address).call()
         return True
     except Exception as e:
-        # horizon raises for non-200; inspect e for 404 vs other
-        # simplest: if "404" in str(e) -> not exists
-        txt = str(e)
-        if "404" in txt:
+        if "404" in str(e):
             return False
-        # else raise to surface network error
         raise
 
-# Endpoint: POST /api/a2u-send
-# Body: { "to_address": "<G or M addr>", "amount": "0.1234567", "identifier": "optional-unique-id", "memo": "optional memo", "metadata": {...} }
+# ---------- Endpoint ----------
 @app.route("/api/a2u-send", methods=["POST"])
 def a2u_send():
     try:
@@ -96,79 +83,55 @@ def a2u_send():
         if not to_address_raw or not amount_raw:
             return jsonify({"success": False, "message": "Missing to_address or amount"}), 400
 
-        # prevent duplicate by identifier
-        existing = a2u_coll.find_one({"identifier": identifier})
-        if existing:
+        if a2u_coll.find_one({"identifier": identifier}):
             return jsonify({"success": False, "message": "Duplicate identifier", "identifier": identifier}), 409
 
-        # convert M->G if needed
-        try:
-            to_g = convert_muxed_to_g(to_address_raw)
-        except Exception as e:
-            return jsonify({"success": False, "message": f"Invalid destination address: {str(e)}"}), 400
+        # --- Convert M→G ---
+        to_g = convert_muxed_to_g(to_address_raw)
 
-        # check target account exists on mainnet
-        try:
-            exists = account_exists_on_mainnet(to_g)
-        except Exception as e:
-            traceback.print_exc()
-            return jsonify({"success": False, "message": "Network error checking destination account"}), 502
-
-        if not exists:
+        # --- Check account exists ---
+        if not account_exists_on_mainnet(to_g):
             return jsonify({"success": False, "message": "Destination account not activated on mainnet"}), 400
 
-        # format amount
-        try:
-            amount_str = format_amount(amount_raw)
-            # minimal validation
-            Decimal(amount_str)  # may raise
-        except Exception as e:
-            return jsonify({"success": False, "message": f"Invalid amount: {str(e)}"}), 400
+        # --- Format amount ---
+        amount_str = format_amount(amount_raw)
+        Decimal(amount_str)  # validate numeric
 
-        # load source account from horizon
-        try:
-            source_account = server.load_account(account_id=app_public)
-        except Exception as e:
-            traceback.print_exc()
-            return jsonify({"success": False, "message": "Unable to load source account from Horizon"}, 500)
+        # --- Load source ---
+        source_account = server.load_account(app_public)
 
-        # (Optional) check app balance sufficient
+        # --- Optional balance check ---
         try:
             balances = {b["asset_type"]: b["balance"] for b in source_account.balances}
             native_balance = Decimal(balances.get("native", "0"))
             if native_balance < Decimal(amount_str):
-                return jsonify({"success": False, "message": "Insufficient app balance to complete A2U"}), 400
+                return jsonify({"success": False, "message": "Insufficient app balance"}), 400
         except Exception:
-            # ignore if structure different; we will just attempt tx and rely on Horizon error
             pass
 
-        # build transaction
+        # --- Build transaction ---
         tx_builder = TransactionBuilder(
             source_account=source_account,
             network_passphrase=NETWORK_PASSPHRASE,
-            base_fee=100  # you may adjust
+            base_fee=100,
         )
 
-        from stellar_sdk.operations import Payment
-        # use native asset (Pi)
         tx_builder.append_payment_op(destination=to_g, amount=amount_str, asset=Asset.native())
 
-        # optional memo (string)
         if memo_text:
-            from stellar_sdk import Memo
-            tx_builder.add_text_memo(memo_text[:28])  # limit memo length if needed
+            tx_builder.add_text_memo(memo_text[:28])
 
         tx = tx_builder.build()
-        tx.sign(KEYPAIR := Keypair.from_secret(APP_PRIVATE_KEY))
+        tx.sign(keypair)
 
-        # submit to horizon
+        # --- Submit transaction ---
         try:
             response = server.submit_transaction(tx)
         except Exception as e:
             traceback.print_exc()
-            return jsonify({"success": False, "message": f"Submit failed: {str(e)}"}), 502
+            return jsonify({"success": False, "message": f"Submit failed: {e}"}), 502
 
-        # Log to mongo
+        # --- Log MongoDB ---
         record = {
             "identifier": identifier,
             "created_at": int(time.time()),
@@ -179,15 +142,17 @@ def a2u_send():
             "memo": memo_text,
             "metadata": metadata,
             "horizon_result": response,
-            "status": "submitted"
+            "status": "submitted",
         }
         a2u_coll.insert_one(record)
 
         return jsonify({"success": True, "tx": response, "identifier": identifier})
+
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+# ---------- Main ----------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=False)
