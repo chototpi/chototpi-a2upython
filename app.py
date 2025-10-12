@@ -1,158 +1,122 @@
-# a2u_mainnet.py
-import os
-import time
-import traceback
-from decimal import Decimal, ROUND_DOWN
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
-from pymongo import MongoClient
+from pi_python import PiNetwork
+from db import save_payment, get_payment_by_id, update_payment_status
+import os, traceback, time
 
-# ---------- Stellar SDK ----------
-from stellar_sdk import (
-    Keypair,
-    Server,
-    TransactionBuilder,
-    Network,
-    Asset,
-    MuxedAccount,
-    Memo,
-    Payment,   # ✅ import Payment TRỰC TIẾP từ stellar_sdk
+load_dotenv()
+
+app = Flask(__name__)
+CORS(app, origins=["https://testnet.chototpi.site"], supports_credentials=True)
+
+# 🔐 Khởi tạo SDK Pi
+pi = PiNetwork()
+pi.initialize(
+    api_key=os.getenv("PI_API_KEY"),
+    wallet_private_key=os.getenv("APP_PRIVATE_KEY"),
+    env=os.getenv("PI_ENV", "testnet")
 )
 
-import stellar_sdk
-print("✅ Stellar SDK version:", stellar_sdk.__version__)
-
-# ---------- Config ----------
-load_dotenv()
-APP_PRIVATE_KEY = os.getenv("APP_PRIVATE_KEY")
-if not APP_PRIVATE_KEY:
-    raise RuntimeError("Environment variable APP_PRIVATE_KEY is required")
-
-HORIZON_URL = os.getenv("HORIZON_URL", "https://api.mainnet.minepi.com")
-NETWORK_PASSPHRASE = os.getenv("NETWORK_PASSPHRASE", "Pi Mainnet")
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-DB_NAME = os.getenv("A2U_DB", "payofpi")
-
-# ---------- Init ----------
-app = Flask(__name__)
-CORS(app, origins="*", supports_credentials=True)
-
-server = Server(horizon_url=HORIZON_URL)
-keypair = Keypair.from_secret(APP_PRIVATE_KEY)
-app_public = keypair.public_key
-
-mongo = MongoClient(MONGO_URI)
-db = mongo[DB_NAME]
-a2u_coll = db["a2u_transactions"]
-
-# ---------- Helpers ----------
-def format_amount(amount):
-    d = Decimal(str(amount)).quantize(Decimal("0.0000001"), rounding=ROUND_DOWN)
-    return format(d, "f")
-
-def convert_muxed_to_g(address: str):
-    if address.startswith("G"):
-        return address
-    if address.startswith("M"):
-        mux = MuxedAccount.from_account(address)
-        return mux.account_id
-    raise ValueError("Unsupported address format")
-
-def account_exists_on_mainnet(g_address):
+# ✅ Tạo payment (mock cho testnet)
+@app.route("/api/create-payment", methods=["POST"])
+def create_payment():
     try:
-        server.accounts().account_id(g_address).call()
-        return True
-    except Exception as e:
-        if "404" in str(e):
-            return False
-        raise
+        data = request.json
+        uid = data.get("uid")
+        username = data.get("username")
 
-# ---------- Endpoint ----------
-@app.route("/api/a2u-send", methods=["POST"])
-def a2u_send():
-    try:
-        payload = request.get_json(force=True)
-        to_address_raw = payload.get("to_address")
-        amount_raw = payload.get("amount")
-        identifier = payload.get("identifier") or f"a2u-{int(time.time())}"
-        memo_text = payload.get("memo") or ""
-        metadata = payload.get("metadata") or {}
+        if not uid and not username:
+            return jsonify({"success": False, "message": "Thiếu uid hoặc username"}), 400
 
-        if not to_address_raw or not amount_raw:
-            return jsonify({"success": False, "message": "Missing to_address or amount"}), 400
+        identifier = uid or username
+        payment_id = f"mock_{identifier}_{int(time.time())}"
 
-        if a2u_coll.find_one({"identifier": identifier}):
-            return jsonify({"success": False, "message": "Duplicate identifier", "identifier": identifier}), 409
-
-        # --- Convert M→G ---
-        to_g = convert_muxed_to_g(to_address_raw)
-
-        # --- Check account exists ---
-        if not account_exists_on_mainnet(to_g):
-            return jsonify({"success": False, "message": "Destination account not activated on mainnet"}), 400
-
-        # --- Format amount ---
-        amount_str = format_amount(amount_raw)
-        Decimal(amount_str)  # validate numeric
-
-        # --- Load source ---
-        source_account = server.load_account(app_public)
-
-        # --- Optional balance check ---
-        try:
-            balances = {b["asset_type"]: b["balance"] for b in source_account.balances}
-            native_balance = Decimal(balances.get("native", "0"))
-            if native_balance < Decimal(amount_str):
-                return jsonify({"success": False, "message": "Insufficient app balance"}), 400
-        except Exception:
-            pass
-
-        # --- Build transaction ---
-        tx_builder = TransactionBuilder(
-            source_account=source_account,
-            network_passphrase=NETWORK_PASSPHRASE,
-            base_fee=100,
-        )
-
-        tx_builder.append_payment_op(destination=to_g, amount=amount_str, asset=Asset.native())
-
-        if memo_text:
-            tx_builder.add_text_memo(memo_text[:28])
-
-        tx = tx_builder.build()
-        tx.sign(keypair)
-
-        # --- Submit transaction ---
-        try:
-            response = server.submit_transaction(tx)
-        except Exception as e:
-            traceback.print_exc()
-            return jsonify({"success": False, "message": f"Submit failed: {e}"}), 502
-
-        # --- Log MongoDB ---
         record = {
-            "identifier": identifier,
-            "created_at": int(time.time()),
-            "from_pub": app_public,
-            "to_raw": to_address_raw,
-            "to_g": to_g,
-            "amount": amount_str,
-            "memo": memo_text,
-            "metadata": metadata,
-            "horizon_result": response,
-            "status": "submitted",
+            "payment_id": payment_id,
+            "uid": uid,
+            "username": username,
+            "amount": data.get("amount"),
+            "metadata": data.get("metadata"),
+            "status": "pending",
+            "created_at": int(time.time())
         }
-        a2u_coll.insert_one(record)
+        inserted_id = save_payment(record)
 
-        return jsonify({"success": True, "tx": response, "identifier": identifier})
-
+        return jsonify({"success": True, "payment_id": payment_id, "db_id": inserted_id})
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-# ---------- Main ----------
+# ✅ Approve payment
+@app.route("/api/approve-payment", methods=["POST"])
+def approve_payment():
+    try:
+        data = request.json
+        payment_id = data.get("payment_id")
+
+        if not payment_id:
+            return jsonify({"error": "Thiếu payment_id"}), 400
+
+        # Mock approve (testnet)
+        result = {"success": True, "payment_id": payment_id, "status": "approved"}
+        update_payment_status(payment_id, "approved")
+
+        return jsonify(result)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+# ✅ Complete payment
+@app.route("/api/complete-payment", methods=["POST"])
+def complete_payment():
+    try:
+        data = request.json
+        payment_id = data.get("payment_id")
+        txid = data.get("txid")
+
+        if not payment_id or not txid:
+            return jsonify({"error": "Thiếu payment_id hoặc txid"}), 400
+
+        # Mock complete (testnet)
+        result = {"success": True, "payment_id": payment_id, "txid": txid, "status": "completed"}
+        update_payment_status(payment_id, "completed", txid)
+
+        return jsonify(result)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+# ✅ Lấy thông tin payment
+@app.route("/api/payment/<payment_id>", methods=["GET"])
+def get_payment(payment_id):
+    try:
+        payment = get_payment_by_id(payment_id)
+        if not payment:
+            return jsonify({"error": "Payment không tồn tại"}), 404
+
+        payment["_id"] = str(payment["_id"])
+        return jsonify(payment)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+# ✅ API check trạng thái payment (cho frontend polling)
+@app.route("/api/payment-status/<payment_id>", methods=["GET"])
+def payment_status(payment_id):
+    try:
+        payment = get_payment_by_id(payment_id)
+        if not payment:
+            return jsonify({"error": "Payment không tồn tại"}), 404
+        return jsonify({"payment_id": payment_id, "status": payment.get("status")})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=False)
+    app.run(host="0.0.0.0", port=5000)
