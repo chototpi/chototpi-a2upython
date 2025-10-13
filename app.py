@@ -3,8 +3,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from pi_python import PiNetwork
 from db import save_payment, get_payment_by_id, update_payment_status
-import os, traceback, time
-import requests
+import os, traceback, time, requests
 from stellar_sdk import Server, Keypair, TransactionBuilder, Network, Asset
 
 load_dotenv()
@@ -23,12 +22,12 @@ pi.initialize(
 # ⚙️ Cấu hình Horizon Testnet
 HORIZON_TESTNET = "https://api.testnet.minepi.com"
 server = Server(horizon_url=HORIZON_TESTNET)
-APP_SECRET_KEY = os.getenv("APP_PRIVATE_KEY")  # ⚠️ chính là ví testnet
+APP_SECRET_KEY = os.getenv("APP_PRIVATE_KEY")  # ví testnet của app
 APP_KEYPAIR = Keypair.from_secret(APP_SECRET_KEY)
 APP_PUBLIC_KEY = APP_KEYPAIR.public_key
 
 
-# ✅ Tạo payment (mock cho testnet)
+# ✅ Tạo payment mock (để frontend cũ không lỗi)
 @app.route("/api/create-payment", methods=["POST"])
 def create_payment():
     try:
@@ -65,15 +64,15 @@ def approve_payment():
     try:
         data = request.json
         payment_id = data.get("payment_id")
-
         if not payment_id:
             return jsonify({"error": "Thiếu payment_id"}), 400
 
-        # Mock approve (testnet)
-        result = {"success": True, "payment_id": payment_id, "status": "approved"}
-        update_payment_status(payment_id, "approved")
+        res = pi.approve_payment(payment_id)
+        if "error" in res:
+            return jsonify(res), 500
 
-        return jsonify(result)
+        update_payment_status(payment_id, "approved")
+        return jsonify({"success": True, "payment_id": payment_id, "status": "approved"})
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
@@ -90,11 +89,12 @@ def complete_payment():
         if not payment_id or not txid:
             return jsonify({"error": "Thiếu payment_id hoặc txid"}), 400
 
-        # Mock complete (testnet)
-        result = {"success": True, "payment_id": payment_id, "txid": txid, "status": "completed"}
-            update_payment_status(payment_id, "completed", txid)
+        res = pi.complete_payment(payment_id, txid)
+        if "error" in res:
+            return jsonify(res), 500
 
-        return jsonify(result)
+        update_payment_status(payment_id, "completed", txid)
+        return jsonify({"success": True, "payment_id": payment_id, "txid": txid, "status": "completed"})
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
@@ -107,7 +107,6 @@ def get_payment(payment_id):
         payment = get_payment_by_id(payment_id)
         if not payment:
             return jsonify({"error": "Payment không tồn tại"}), 404
-
         payment["_id"] = str(payment["_id"])
         return jsonify(payment)
     except Exception as e:
@@ -115,7 +114,7 @@ def get_payment(payment_id):
         return jsonify({"error": str(e)}), 500
 
 
-# ✅ API check trạng thái payment (cho frontend polling)
+# ✅ API check trạng thái payment
 @app.route("/api/payment-status/<payment_id>", methods=["GET"])
 def payment_status(payment_id):
     try:
@@ -128,13 +127,12 @@ def payment_status(payment_id):
         return jsonify({"error": str(e)}), 500
 
 
-# 🟣 1️⃣ VERIFY USER (Pi Testnet)
+# 🟣 VERIFY USER (Pi testnet)
 @app.route("/api/verify-user", methods=["POST"])
 def verify_user():
     try:
         data = request.get_json()
         access_token = data.get("accessToken")
-
         if not access_token:
             return jsonify({"error": "Thiếu accessToken"}), 400
 
@@ -152,7 +150,7 @@ def verify_user():
         return jsonify({"error": str(e)}), 500
 
 
-# 🟣 2️⃣ A2U-DIRECT (Gửi Pi Testnet)
+# 🟣 A2U-DIRECT (chuyển Pi testnet)
 @app.route("/api/a2u-direct", methods=["POST"])
 def a2u_direct():
     try:
@@ -182,6 +180,19 @@ def a2u_direct():
         tx.sign(APP_KEYPAIR)
         response = server.submit_transaction(tx)
         tx_hash = response["hash"]
+        # ✅ Lưu log payment
+        record = {
+            "payment_id": tx_hash,
+            "uid": uid,
+            "username": data.get("username"),
+            "amount": amount,
+            "status": "sent",
+            "to_wallet": to_wallet,
+            "created_at": int(time.time())
+        }
+        save_payment(record)
+
+        print(f"[A2U] ✅ {amount} Pi sent to {to_wallet}, txid={tx_hash}")
 
         return jsonify({
             "success": True,
