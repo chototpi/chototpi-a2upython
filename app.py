@@ -114,7 +114,7 @@ def a2u_test():
 
         print(f"👉 ENV: {pi.env}")
         print(f"🔗 base_url: {pi.base_url}")
-        print(f"🪪 APP_PUBLIC_KEY: {pi.keypair.public_key}")
+        print(f"🪪 APP_PUBLIC_KEY: {APP_PUBLIC_KEY}")
         print(f"👤 Đang gửi A2U cho UID: {uid}, Amount: {amount}")
 
         # 🔎 B1: Gọi API mainnet để lấy ví người dùng
@@ -141,7 +141,7 @@ def a2u_test():
             "memo": identifier,
             "metadata": {"source": "a2u"},
             "identifier": identifier,
-            "from_address": pi.keypair.public_key,
+            "from_address": APP_PUBLIC_KEY,
             "to_address": user_wallet,
             "network": pi.network
         }
