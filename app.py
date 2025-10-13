@@ -2,158 +2,131 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 from pi_python import PiNetwork
-import os, traceback, time, requests
+from db import save_payment, get_payment_by_id, update_payment_status
+import os, traceback, time
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app, origins=["https://testnet.chototpi.site"], supports_credentials=True)
 
-# 🔐 Khởi tạo SDK Pi A2U
+# 🔐 Khởi tạo SDK Pi thật trên Testnet
 pi = PiNetwork()
 pi.initialize(
     api_key=os.getenv("PI_API_KEY"),
     wallet_private_key=os.getenv("APP_PRIVATE_KEY"),
-    env=os.getenv("PI_ENV", "testnet")
+    env=os.getenv("PI_ENV", "testnet")  # testnet
 )
 
-@app.route("/", methods=["GET"])
-def home():
-    return "✅ Pi A2U Python backend is running."
-
-@app.route("/api/verify-user", methods=["POST"])
-def verify_user():
+# ----------------------------
+# ✅ 1. Tạo payment
+# ----------------------------
+@app.route("/api/create-payment", methods=["POST"])
+def create_payment():
     try:
-        data = request.get_json()
-        access_token = data.get("accessToken")
-        if not access_token:
-            return jsonify({"error": "Thiếu accessToken"}), 400
+        data = request.json
+        uid = data.get("uid")
+        username = data.get("username")
+        amount = data.get("amount")
+        metadata = data.get("metadata", {})
 
-        headers = {"Authorization": f"Bearer {access_token}"}
-        # 🧠 Luôn gọi xác minh qua mainnet
-        url = "https://api.minepi.com/v2/me"
-        response = requests.get(url, headers=headers)
+        if not uid and not username:
+            return jsonify({"success": False, "message": "Thiếu uid hoặc username"}), 400
 
-        if response.status_code != 200:
-            print("❌ Xác minh user thất bại:", response.text)
-            return jsonify({"error": "User không hợp lệ"}), 401
+        # Thực sự gọi Pi SDK tạo payment trên Testnet
+        pi_payment = pi.create_payment(
+            amount=amount,
+            recipient=uid,       # uid người nhận
+            metadata=metadata
+        )
+        payment_id = pi_payment.get("id")  # ID thật từ Pi SDK
 
-        user_data = response.json()
-        uid = user_data["uid"]
-        print(f"✅ Xác minh UID: {uid}")
-        return jsonify({"success": True, "user": user_data})
+        # Lưu DB
+        record = {
+            "payment_id": payment_id,
+            "uid": uid,
+            "username": username,
+            "amount": amount,
+            "metadata": metadata,
+            "status": "pending",
+            "created_at": int(time.time())
+        }
+        inserted_id = save_payment(record)
+
+        return jsonify({"success": True, "payment_id": payment_id, "db_id": inserted_id})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+# ----------------------------
+# ✅ 2. Approve payment
+# ----------------------------
+@app.route("/api/approve-payment", methods=["POST"])
+def approve_payment():
+    try:
+        data = request.json
+        payment_id = data.get("payment_id")
+
+        if not payment_id:
+            return jsonify({"error": "Thiếu payment_id"}), 400
+
+        result = pi.approve_payment(payment_id)
+        if "error" not in result:
+            update_payment_status(payment_id, "approved")
+        return jsonify(result)
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-@app.route("/approve-payment", methods=["POST"])
-def approve_payment():
-    try:
-        data = request.get_json()
-        payment_id = data.get("paymentId")
-        print(f"🧾 Approve paymentId: {payment_id}")
-        result = pi.approve_payment(payment_id)
-        return jsonify({"success": True, "approved": result})
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"success": False, "message": str(e)}), 500
-
-@app.route("/complete-payment", methods=["POST"])
+# ----------------------------
+# ✅ 3. Complete payment
+# ----------------------------
+@app.route("/api/complete-payment", methods=["POST"])
 def complete_payment():
     try:
-        data = request.get_json()
-        payment_id = data.get("paymentId")
+        data = request.json
+        payment_id = data.get("payment_id")
         txid = data.get("txid")
+
+        if not payment_id or not txid:
+            return jsonify({"error": "Thiếu payment_id hoặc txid"}), 400
+
         result = pi.complete_payment(payment_id, txid)
-        return jsonify({"success": True, "txid": result})
+        if "error" not in result:
+            update_payment_status(payment_id, "completed", txid)
+        return jsonify(result)
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"success": False, "message": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@app.route("/api/a2u-direct", methods=["POST"])
-def a2u_direct():
+# ----------------------------
+# ✅ 4. Lấy thông tin payment
+# ----------------------------
+@app.route("/api/payment/<payment_id>", methods=["GET"])
+def get_payment(payment_id):
     try:
-        data = request.get_json()
-        uid = data.get("uid")
-        amount = str(data.get("amount"))
-        to_wallet = data.get("to_wallet")
-
-        print(f"🧾 Yêu cầu A2U cho UID: {uid}, amount: {amount}, to_wallet: {to_wallet}")
-
-        if not to_wallet or not to_wallet.startswith("G"):
-            return jsonify({"success": False, "message": "❌ Địa chỉ ví không hợp lệ hoặc chưa được nhập."}), 400
-
-        identifier = f"a2u-{uid[:6]}-{int(time.time())}"
-        memo = "Chototpi thanh toán"
-        payment_data = {
-            "user_uid": uid,
-            "amount": amount,
-            "memo": memo,
-            "metadata": {"source": "a2u"},
-            "identifier": identifier,
-            "from_address": pi.keypair.public_key,
-            "to_address": to_wallet,
-            "network": pi.network
-        }
-
-        payment_id = pi.create_payment(payment_data)
-        txid = pi.submit_payment(payment_id, None)
-        pi.complete_payment(payment_id, txid)
-
-        return jsonify({"success": True, "txid": txid})
+        payment = get_payment_by_id(payment_id)
+        if not payment:
+            return jsonify({"error": "Payment không tồn tại"}), 404
+        payment["_id"] = str(payment["_id"])
+        return jsonify(payment)
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"success": False, "message": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@app.route("/api/a2u-test", methods=["POST"])
-def a2u_test():
+# ----------------------------
+# ✅ 5. Kiểm tra trạng thái payment
+# ----------------------------
+@app.route("/api/payment-status/<payment_id>", methods=["GET"])
+def payment_status(payment_id):
     try:
-        data = request.get_json()
-        uid = data.get("uid")
-        amount = str(data.get("amount"))
-
-        print(f"👉 ENV: {pi.env}")
-        print(f"🔗 base_url: {pi.base_url}")
-        print(f"🪪 APP_PUBLIC_KEY: {pi.keypair.public_key}")
-        print(f"👤 Đang gửi A2U cho UID: {uid}, Amount: {amount}")
-
-        # 🔎 B1: Gọi API mainnet để lấy ví người dùng
-        user_url = f"https://api.minepi.com/v2/users/{uid}"
-        user_res = requests.get(user_url, headers=pi.get_http_headers())
-        if user_res.status_code != 200:
-            print(f"❌ Không tìm thấy user UID: {uid}")
-            return jsonify({
-                "success": False,
-                "message": f"❌ Không tìm thấy user UID: {uid}"
-            }), 404
-
-        user_data = user_res.json()
-        user_wallet = user_data["user"]["wallet"]["public_key"]
-        print(f"🎯 User Wallet Address: {user_wallet}")
-
-        # 🧾 B2: Tạo identifier
-        identifier = f"a2u-{uid[:6]}-{int(time.time())}"
-
-        # 🪙 B3: Chuẩn bị dữ liệu giao dịch
-        payment_data = {
-            "user_uid": uid,
-            "amount": amount,
-            "memo": identifier,
-            "metadata": {"source": "a2u"},
-            "identifier": identifier,
-            "from_address": pi.keypair.public_key,
-            "to_address": user_wallet,
-            "network": pi.network
-        }
-
-        # 🚀 B4: Gửi giao dịch testnet
-        payment_id = pi.create_payment(payment_data)
-        txid = pi.submit_payment(payment_id, None)
-        pi.complete_payment(payment_id, txid)
-
-        print(f"✅ Đã gửi A2U thành công: {txid}")
-        return jsonify({"success": True, "txid": txid, "to": user_wallet})
-
+        payment = get_payment_by_id(payment_id)
+        if not payment:
+            return jsonify({"error": "Payment không tồn tại"}), 404
+        return jsonify({"payment_id": payment_id, "status": payment.get("status")})
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"success": False, "message": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
