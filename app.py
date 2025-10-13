@@ -89,9 +89,13 @@ def a2u_direct():
 
         print(f"🧾 Yêu cầu A2U cho UID: {uid}, amount: {amount}, to_wallet: {to_wallet}")
 
+        # ✅ Gán identifier sớm để không bị undefined
+        identifier = f"a2u-{uid[:6]}-{int(time.time())}"
+
+        # ✅ Kiểm tra ví hợp lệ
         if not to_wallet or not to_wallet.startswith("G"):
             return jsonify({"success": False, "message": "❌ Địa chỉ ví không hợp lệ."}), 400
-            identifier = f"a2u-{uid[:6]}-{int(time.time())}"
+
         memo = "Chototpi thanh toán"
         payment_data = {
             "user_uid": uid,
@@ -104,6 +108,7 @@ def a2u_direct():
             "network": pi.network
         }
 
+        # ✅ Gửi giao dịch
         payment_id = pi.create_payment(payment_data)
         txid = pi.submit_payment(payment_id, None)
         pi.complete_payment(payment_id, txid)
