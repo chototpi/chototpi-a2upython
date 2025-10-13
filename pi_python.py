@@ -1,31 +1,29 @@
 import os
 import requests
 import traceback
-from stellar_sdk import Keypair
+from stellar_sdk import Keypair, Server, TransactionBuilder, Network
+
 
 class PiNetwork:
     def __init__(self):
         self.api_key = None
         self.wallet_private_key = None
         self.env = "testnet"
-        self.base_url = None
+        self.base_url = "https://api.minepi.com/v2"
         self.keypair = None
-        self.network = None  # ✅ Pi Testnet / Pi Mainnet
+        self.network = None  # Pi Mainnet / Pi Testnet
 
+    # ✅ Khởi tạo môi trường
     def initialize(self, api_key, wallet_private_key, env="testnet"):
         self.api_key = api_key
         self.wallet_private_key = wallet_private_key
         self.env = env.lower().strip()
 
-        # ✅ Chọn URL đúng môi trường
-        if self.env == "mainnet":
-            self.base_url = "https://api.minepi.com/v2"
-            self.network = "Pi Mainnet"
-        else:
-            self.base_url = "https://api.testnet.minepi.com/v2"
-            self.network = "Pi Testnet"
+        # ✅ Dùng chung API endpoint, chỉ đổi network name
+        self.base_url = "https://api.minepi.com/v2"
+        self.network = "Pi Mainnet" if self.env == "mainnet" else "Pi Testnet"
 
-        # ✅ Tạo keypair từ private key
+        # ✅ Khởi tạo keypair
         try:
             self.keypair = Keypair.from_secret(wallet_private_key)
             print(f"🔑 Wallet initialized: {self.keypair.public_key}")
@@ -33,7 +31,9 @@ class PiNetwork:
             print("⚠️ Không thể khởi tạo keypair:", e)
             self.keypair = None
 
-    # 🔹 Header dùng cho API Pi
+    # =============================
+    # 🔹 HEADER DÙNG CHO PI API
+    # =============================
     def _headers(self):
         return {
             "Authorization": f"Key {self.api_key}",
@@ -44,7 +44,9 @@ class PiNetwork:
         """Dùng cho /users/{uid}"""
         return {"Authorization": f"Key {self.api_key}"}
 
-    # 🔹 Lấy thông tin payment
+    # =============================
+    # 🔹 LẤY THÔNG TIN PAYMENT
+    # =============================
     def get_payment(self, payment_id):
         try:
             url = f"{self.base_url}/payments/{payment_id}"
@@ -55,7 +57,9 @@ class PiNetwork:
             traceback.print_exc()
             return {"error": str(e)}
 
-    # 🔹 Approve payment
+    # =============================
+    # 🔹 APPROVE PAYMENT
+    # =============================
     def approve_payment(self, payment_id):
         try:
             url = f"{self.base_url}/payments/{payment_id}/approve"
@@ -66,7 +70,9 @@ class PiNetwork:
             traceback.print_exc()
             return {"error": str(e)}
 
-    # 🔹 Complete payment
+    # =============================
+    # 🔹 COMPLETE PAYMENT
+    # =============================
     def complete_payment(self, payment_id, txid):
         try:
             url = f"{self.base_url}/payments/{payment_id}/complete"
@@ -78,12 +84,14 @@ class PiNetwork:
             traceback.print_exc()
             return {"error": str(e)}
 
-    # 🔹 Tạo payment (chỉ hoạt động testnet/mainnet hợp lệ)
+    # =============================
+    # 🔹 TẠO PAYMENT
+    # =============================
     def create_payment(self, payment_data):
         try:
             url = f"{self.base_url}/payments"
             r = requests.post(url, json=payment_data, headers=self._headers(), timeout=10)
-            if r.status_code != 200:
+            if r.status_code not in (200, 201):
                 print("❌ Lỗi tạo payment:", r.text)
                 return {"error": f"{r.status_code}: {r.text}"}
 
@@ -94,12 +102,50 @@ class PiNetwork:
             traceback.print_exc()
             return {"error": str(e)}
 
-    # 🔹 Submit payment (mock cho testnet)
+    # =============================
+    # 🔹 GỬI GIAO DỊCH THỰC TRÊN TESTNET
+    # =============================
     def submit_payment(self, payment_id, txid=None):
-        """Hiện testnet chưa cần submit thực — chỉ trả về mã txid ảo"""
-        if not payment_id or isinstance(payment_id, dict):
-            fake_txid = f"TX-{int(os.urandom(2).hex(), 16)}"
-        else:
-            fake_txid = f"TX-{payment_id[:6]}-{int(os.urandom(2).hex(), 16)}"
-        print("🚀 Submit mock txid:", fake_txid)
-        return fake_txid
+        try:
+            # ✅ Lấy thông tin payment từ Pi API
+            payment = self.get_payment(payment_id)
+            if not payment or "error" in payment:
+                raise Exception("Không lấy được thông tin payment.")
+
+            to_wallet = payment.get("to_address")
+            amount = str(payment.get("amount"))
+
+            if not to_wallet or not to_wallet.startswith("G"):
+                raise Exception("Địa chỉ ví đích không hợp lệ.")
+
+            # ✅ Kết nối Horizon Testnet
+            server = Server("https://api.testnet.minepi.com")
+
+            # ✅ Load tài khoản nguồn
+            source_keypair = Keypair.from_secret(self.wallet_private_key)
+            source_account = server.load_account(source_keypair.public_key)
+
+            # ✅ Xây giao dịch chuyển Pi
+            tx = (
+                TransactionBuilder(
+                    source_account=source_account,
+                    network_passphrase=Network.TESTNET_NETWORK_PASSPHRASE,
+                    base_fee=100
+                )
+                .append_payment_op(destination=to_wallet, amount=amount, asset_code="PI")
+                .set_timeout(30)
+                .build()
+            )
+
+            # ✅ Ký và gửi
+            tx.sign(source_keypair)
+            response = server.submit_transaction(tx)
+
+            tx_hash = response["hash"]
+            print(f"✅ Transaction success! Hash: {tx_hash}")
+
+            return tx_hash
+
+        except Exception as e:
+            traceback.print_exc()
+            return {"error": str(e)}
