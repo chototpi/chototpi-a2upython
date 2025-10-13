@@ -114,6 +114,7 @@ def a2u_direct():
         pi.complete_payment(payment_id, txid)
 
         return jsonify({"success": True, "txid": txid})
+
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
