@@ -1,4 +1,98 @@
-update_payment_status(payment_id, "completed", txid)
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from dotenv import load_dotenv
+from pi_python import PiNetwork
+from db import save_payment, get_payment_by_id, update_payment_status
+import os, traceback, time
+import requests
+from stellar_sdk import Server, Keypair, TransactionBuilder, Network, Asset
+
+load_dotenv()
+
+app = Flask(__name__)
+CORS(app, origins=["https://testnet.chototpi.site"], supports_credentials=True)
+
+# 🔐 Khởi tạo SDK Pi
+pi = PiNetwork()
+pi.initialize(
+    api_key=os.getenv("PI_API_KEY"),
+    wallet_private_key=os.getenv("APP_PRIVATE_KEY"),
+    env=os.getenv("PI_ENV", "testnet")
+)
+
+# ⚙️ Cấu hình Horizon Testnet
+HORIZON_TESTNET = "https://api.testnet.minepi.com"
+server = Server(horizon_url=HORIZON_TESTNET)
+APP_SECRET_KEY = os.getenv("APP_PRIVATE_KEY")  # ⚠️ chính là ví testnet
+APP_KEYPAIR = Keypair.from_secret(APP_SECRET_KEY)
+APP_PUBLIC_KEY = APP_KEYPAIR.public_key
+
+
+# ✅ Tạo payment (mock cho testnet)
+@app.route("/api/create-payment", methods=["POST"])
+def create_payment():
+    try:
+        data = request.json
+        uid = data.get("uid")
+        username = data.get("username")
+
+        if not uid and not username:
+            return jsonify({"success": False, "message": "Thiếu uid hoặc username"}), 400
+
+        identifier = uid or username
+        payment_id = f"mock_{identifier}_{int(time.time())}"
+
+        record = {
+            "payment_id": payment_id,
+            "uid": uid,
+            "username": username,
+            "amount": data.get("amount"),
+            "metadata": data.get("metadata"),
+            "status": "pending",
+            "created_at": int(time.time())
+        }
+        inserted_id = save_payment(record)
+
+        return jsonify({"success": True, "payment_id": payment_id, "db_id": inserted_id})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ✅ Approve payment
+@app.route("/api/approve-payment", methods=["POST"])
+def approve_payment():
+    try:
+        data = request.json
+        payment_id = data.get("payment_id")
+
+        if not payment_id:
+            return jsonify({"error": "Thiếu payment_id"}), 400
+
+        # Mock approve (testnet)
+        result = {"success": True, "payment_id": payment_id, "status": "approved"}
+        update_payment_status(payment_id, "approved")
+
+        return jsonify(result)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+# ✅ Complete payment
+@app.route("/api/complete-payment", methods=["POST"])
+def complete_payment():
+    try:
+        data = request.json
+        payment_id = data.get("payment_id")
+        txid = data.get("txid")
+
+        if not payment_id or not txid:
+            return jsonify({"error": "Thiếu payment_id hoặc txid"}), 400
+
+        # Mock complete (testnet)
+        result = {"success": True, "payment_id": payment_id, "txid": txid, "status": "completed"}
+            update_payment_status(payment_id, "completed", txid)
 
         return jsonify(result)
     except Exception as e:
@@ -92,7 +186,7 @@ def a2u_direct():
         return jsonify({
             "success": True,
             "txid": tx_hash,
-        "to_wallet": to_wallet,
+            "to_wallet": to_wallet,
             "amount": amount,
             "status": "sent"
         })
