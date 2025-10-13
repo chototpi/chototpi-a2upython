@@ -22,9 +22,11 @@ pi.initialize(
 keypair = Keypair.from_secret(os.getenv("APP_PRIVATE_KEY"))
 APP_PUBLIC_KEY = keypair.public_key
 
+
 @app.route("/", methods=["GET"])
 def home():
     return "✅ Pi A2U Python backend is running."
+
 
 @app.route("/api/verify-user", methods=["POST"])
 def verify_user():
@@ -35,7 +37,6 @@ def verify_user():
             return jsonify({"error": "Thiếu accessToken"}), 400
 
         headers = {"Authorization": f"Bearer {access_token}"}
-        # 🧠 Luôn gọi xác minh qua mainnet
         url = "https://api.minepi.com/v2/me"
         response = requests.get(url, headers=headers)
 
@@ -51,6 +52,7 @@ def verify_user():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/approve-payment", methods=["POST"])
 def approve_payment():
     try:
@@ -62,6 +64,7 @@ def approve_payment():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
+
 
 @app.route("/complete-payment", methods=["POST"])
 def complete_payment():
@@ -75,6 +78,7 @@ def complete_payment():
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
 
+
 @app.route("/api/a2u-direct", methods=["POST"])
 def a2u_direct():
     try:
@@ -86,9 +90,8 @@ def a2u_direct():
         print(f"🧾 Yêu cầu A2U cho UID: {uid}, amount: {amount}, to_wallet: {to_wallet}")
 
         if not to_wallet or not to_wallet.startswith("G"):
-            return jsonify({"success": False, "message": "❌ Địa chỉ ví không hợp lệ hoặc chưa được nhập."}), 400
-
-        identifier = f"a2u-{uid[:6]}-{int(time.time())}"
+            return jsonify({"success": False, "message": "❌ Địa chỉ ví không hợp lệ."}), 400
+            identifier = f"a2u-{uid[:6]}-{int(time.time())}"
         memo = "Chototpi thanh toán"
         payment_data = {
             "user_uid": uid,
@@ -110,6 +113,7 @@ def a2u_direct():
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
 
+
 @app.route("/api/a2u-test", methods=["POST"])
 def a2u_test():
     try:
@@ -122,24 +126,18 @@ def a2u_test():
         print(f"🪪 APP_PUBLIC_KEY: {APP_PUBLIC_KEY}")
         print(f"👤 Đang gửi A2U cho UID: {uid}, Amount: {amount}")
 
-        # 🔎 B1: Gọi API mainnet để lấy ví người dùng
+        # 🔎 Lấy ví người dùng từ UID
         user_url = f"https://api.minepi.com/v2/users/{uid}"
         user_res = requests.get(user_url, headers=pi.get_http_headers())
         if user_res.status_code != 200:
             print(f"❌ Không tìm thấy user UID: {uid}")
-            return jsonify({
-                "success": False,
-                "message": f"❌ Không tìm thấy user UID: {uid}"
-            }), 404
+            return jsonify({"success": False, "message": "❌ Không tìm thấy user UID"}), 404
 
         user_data = user_res.json()
         user_wallet = user_data["user"]["wallet"]["public_key"]
         print(f"🎯 User Wallet Address: {user_wallet}")
 
-        # 🧾 B2: Tạo identifier
         identifier = f"a2u-{uid[:6]}-{int(time.time())}"
-
-        # 🪙 B3: Chuẩn bị dữ liệu giao dịch
         payment_data = {
             "user_uid": uid,
             "amount": amount,
@@ -151,14 +149,12 @@ def a2u_test():
             "network": pi.network
         }
 
-        # 🚀 B4: Gửi giao dịch testnet
         payment_id = pi.create_payment(payment_data)
         txid = pi.submit_payment(payment_id, None)
         pi.complete_payment(payment_id, txid)
 
         print(f"✅ Đã gửi A2U thành công: {txid}")
         return jsonify({"success": True, "txid": txid, "to": user_wallet})
-
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
