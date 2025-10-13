@@ -1,102 +1,122 @@
-import os
-import traceback
 from flask import Flask, request, jsonify
+from flask_cors import CORS
+from dotenv import load_dotenv
 from pi_python import PiNetwork
+from db import save_payment, get_payment_by_id, update_payment_status
+import os, traceback, time
+
+load_dotenv()
 
 app = Flask(__name__)
+CORS(app, origins=["https://testnet.chototpi.site"], supports_credentials=True)
 
-# 🟣 Khởi tạo PiNetwork
+# 🔐 Khởi tạo SDK Pi
 pi = PiNetwork()
 pi.initialize(
-    api_key=os.getenv("PI_API_KEY"),               # Lấy từ biến môi trường hoặc file .env
-    wallet_private_key=os.getenv("APP_PRIVATE_KEY"), # Private key ví admin
-    env=os.getenv("PI_ENV", "testnet")             # testnet hoặc mainnet
+    api_key=os.getenv("PI_API_KEY"),
+    wallet_private_key=os.getenv("APP_PRIVATE_KEY"),
+    env=os.getenv("PI_ENV", "testnet")
 )
 
-# 🟢 ROUTER: Lấy thông tin thanh toán
-@app.route("/get-payment", methods=["POST"])
-def get_payment():
+# ✅ Tạo payment (mock cho testnet)
+@app.route("/api/create-payment", methods=["POST"])
+def create_payment():
     try:
-        data = request.get_json()
-        payment_id = data.get("payment_id")
-        if not payment_id:
-            return jsonify({"error": "Thiếu payment_id"}), 400
+        data = request.json
+        uid = data.get("uid")
+        username = data.get("username")
 
-        result = pi.get_payment(payment_id)
-        return jsonify(result)
+        if not uid and not username:
+            return jsonify({"success": False, "message": "Thiếu uid hoặc username"}), 400
+
+        identifier = uid or username
+        payment_id = f"mock_{identifier}_{int(time.time())}"
+
+        record = {
+            "payment_id": payment_id,
+            "uid": uid,
+            "username": username,
+            "amount": data.get("amount"),
+            "metadata": data.get("metadata"),
+            "status": "pending",
+            "created_at": int(time.time())
+        }
+        inserted_id = save_payment(record)
+
+        return jsonify({"success": True, "payment_id": payment_id, "db_id": inserted_id})
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"success": False, "message": str(e)}), 500
 
 
-# 🟢 ROUTER: Duyệt thanh toán
-@app.route("/approve-payment", methods=["POST"])
+# ✅ Approve payment
+@app.route("/api/approve-payment", methods=["POST"])
 def approve_payment():
     try:
-        data = request.get_json()
+        data = request.json
         payment_id = data.get("payment_id")
+
         if not payment_id:
             return jsonify({"error": "Thiếu payment_id"}), 400
 
-        result = pi.approve_payment(payment_id)
+        # Mock approve (testnet)
+        result = {"success": True, "payment_id": payment_id, "status": "approved"}
+        update_payment_status(payment_id, "approved")
+
         return jsonify(result)
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
-# 🟢 ROUTER: Hoàn tất thanh toán (có txid)
-@app.route("/complete-payment", methods=["POST"])
+# ✅ Complete payment
+@app.route("/api/complete-payment", methods=["POST"])
 def complete_payment():
     try:
-        data = request.get_json()
+        data = request.json
         payment_id = data.get("payment_id")
         txid = data.get("txid")
 
         if not payment_id or not txid:
             return jsonify({"error": "Thiếu payment_id hoặc txid"}), 400
 
-        result = pi.complete_payment(payment_id, txid)
+        # Mock complete (testnet)
+        result = {"success": True, "payment_id": payment_id, "txid": txid, "status": "completed"}
+        update_payment_status(payment_id, "completed", txid)
+
         return jsonify(result)
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
-# 🟢 ROUTER: Tạo payment thực (chạy Testnet/Mainnet)
-@app.route("/create-payment", methods=["POST"])
-def create_payment():
+# ✅ Lấy thông tin payment
+@app.route("/api/payment/<payment_id>", methods=["GET"])
+def get_payment(payment_id):
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "Thiếu dữ liệu thanh toán"}), 400
+        payment = get_payment_by_id(payment_id)
+        if not payment:
+            return jsonify({"error": "Payment không tồn tại"}), 404
 
-        result = pi.create_payment(data)
-        return jsonify(result)
+        payment["_id"] = str(payment["_id"])
+        return jsonify(payment)
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
-# 🟢 Kiểm tra môi trường đang chạy
-@app.route("/env", methods=["GET"])
-def get_env():
-    return jsonify({
-        "network": pi.env,
-        "base_url": pi.base_url,
-        "public_key": getattr(pi, "keypair", None),
-    })
-
-
-# 🟢 Trang mặc định
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({
-        "message": f"🚀 Pi Network A2U {pi.env.upper()} server đang hoạt động!",
-        "base_url": pi.base_url
-    })
+# ✅ API check trạng thái payment (cho frontend polling)
+@app.route("/api/payment-status/<payment_id>", methods=["GET"])
+def payment_status(payment_id):
+    try:
+        payment = get_payment_by_id(payment_id)
+        if not payment:
+            return jsonify({"error": "Payment không tồn tại"}), 404
+        return jsonify({"payment_id": payment_id, "status": payment.get("status")})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=5000)
