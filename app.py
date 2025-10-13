@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 from pi_python import PiNetwork
+from stellar_sdk import Keypair
 import os, traceback, time, requests
 
 load_dotenv()
@@ -16,6 +17,10 @@ pi.initialize(
     wallet_private_key=os.getenv("APP_PRIVATE_KEY"),
     env=os.getenv("PI_ENV", "testnet")
 )
+
+# 🔐 Khởi tạo keypair cho ví app
+keypair = Keypair.from_secret(os.getenv("APP_PRIVATE_KEY"))
+APP_PUBLIC_KEY = keypair.public_key
 
 @app.route("/", methods=["GET"])
 def home():
