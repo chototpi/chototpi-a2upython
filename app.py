@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 from pi_python import PiNetwork
-from stellar_sdk import Keypair
+from stellar_sdk import Server, TransactionBuilder, Network, Keypair
 import os, traceback, time, requests
 
 load_dotenv()
@@ -84,36 +84,45 @@ def a2u_direct():
     try:
         data = request.get_json()
         uid = data.get("uid")
-        amount = str(data.get("amount"))
+        amount = float(data.get("amount"))
         to_wallet = data.get("to_wallet")
 
-        print(f"🧾 Yêu cầu A2U cho UID: {uid}, amount: {amount}, to_wallet: {to_wallet}")
-
-        # ✅ Gán identifier sớm để không bị undefined
-        identifier = f"a2u-{uid[:6]}-{int(time.time())}"
+        print(f"🧾 Gửi A2U thực tế (Testnet) — UID: {uid}, amount: {amount}, to_wallet: {to_wallet}")
 
         # ✅ Kiểm tra ví hợp lệ
         if not to_wallet or not to_wallet.startswith("G"):
             return jsonify({"success": False, "message": "❌ Địa chỉ ví không hợp lệ."}), 400
 
-        memo = "Chototpi thanh toán"
-        payment_data = {
-            "user_uid": uid,
-            "amount": amount,
-            "memo": memo,
-            "metadata": {"source": "a2u"},
-            "identifier": identifier,
-            "from_address": pi.keypair.public_key,
-            "to_address": to_wallet,
-            "network": pi.network
-        }
+        # ✅ Kết nối Horizon Testnet
+        server = Server("https://horizon-testnet.stellar.org")
+        source_keypair = Keypair.from_secret(os.getenv("APP_PRIVATE_KEY"))
+        source_account = server.load_account(source_keypair.public_key)
 
-        # ✅ Gửi giao dịch
-        payment_id = pi.create_payment(payment_data)
-        txid = pi.submit_payment(payment_id, None)
-        pi.complete_payment(payment_id, txid)
+        # ✅ Xây giao dịch
+        tx = (
+            TransactionBuilder(
+                source_account=source_account,
+                network_passphrase=Network.TESTNET_NETWORK_PASSPHRASE,
+                base_fee=100
+            )
+            .add_text_memo(f"A2U-{uid[:6]}")
+            .append_payment_op(destination=to_wallet, amount=str(amount), asset_code="PI")
+            .set_timeout(30)
+            .build()
+        )
 
-        return jsonify({"success": True, "txid": txid})
+        # ✅ Ký và gửi giao dịch
+        tx.sign(source_keypair)
+        response = server.submit_transaction(tx)
+
+        print(f"✅ A2U thành công — TXID: {response['hash']}")
+        return jsonify({
+            "success": True,
+            "txid": response["hash"],
+            "from": source_keypair.public_key,
+            "to": to_wallet,
+            "amount": amount
+        })
 
     except Exception as e:
         traceback.print_exc()
