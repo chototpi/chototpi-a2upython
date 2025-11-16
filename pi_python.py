@@ -21,7 +21,7 @@ class PiNetwork:
         self.api_key = api_key
         self.env = env.lower()
 
-        # Pi API luôn dùng mainnet
+        # Pi API luôn mainnet
         self.base_url = "https://api.minepi.com"
 
         # Horizon URL
@@ -32,7 +32,7 @@ class PiNetwork:
             horizon_url = "https://api.testnet.minepi.com"
             self.network = "Pi Testnet"
 
-        # Load account
+        # Load keypair & account
         self.keypair = s_sdk.Keypair.from_secret(wallet_private_key)
         self.server = s_sdk.Server(horizon_url=horizon_url)
 
@@ -54,7 +54,9 @@ class PiNetwork:
     def validate_private_seed_format(self, seed):
         return seed.upper().startswith("S") and len(seed) == 56
 
-    # A2U native Test-Pi
+    # ------------------------------
+    #  A2U Native Test-Pi Payment
+    # ------------------------------
     def create_payment(self, payment_data):
         self.open_payments[payment_data["identifier"]] = payment_data
         return payment_data["identifier"]
@@ -73,7 +75,7 @@ class PiNetwork:
             .append_payment_op(
                 destination=payment["to_address"],
                 amount=str(payment["amount"]),
-                asset=s_sdk.Asset.native()     # native Test-Pi
+                asset=s_sdk.Asset.native()     # Native Test-Pi
             )
             .set_timeout(180)
             .build()
@@ -88,14 +90,15 @@ class PiNetwork:
         payload = {"txid": txid} if txid else {}
         res = requests.post(url, headers=self.get_http_headers(), json=payload)
         return res.json()
-        def approve_payment(self, payment_id):
+
+    def approve_payment(self, payment_id):
         url = f"{self.base_url}/v2/payments/{payment_id}/approve"
         res = requests.post(url, headers=self.get_http_headers(), json={})
         return res.json()
 
-    # ------------------------------------
-    # ✅ GỬI TOKEN GMOP CHÍNH XÁC TẠI ĐÂY
-    # ------------------------------------
+    # ------------------------------
+    #   SEND CUSTOM TOKEN (GMOP)
+    # ------------------------------
     def send_token(self, asset_code, asset_issuer, amount, destination):
         print(f"🚀 Sending {amount} {asset_code} → {destination}")
 
@@ -111,7 +114,7 @@ class PiNetwork:
             .append_payment_op(
                 destination=destination,
                 amount=str(amount),
-                asset=asset  # GMOP token here!
+                asset=asset  # GMOP token here
             )
             .set_timeout(180)
             .build()
