@@ -7,7 +7,7 @@ import os, traceback, time, requests
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins=["https://testnet.chototpi.site"], supports_credentials=True)
+CORS(app, origins=["https://chototpi.site"], supports_credentials=True)
 
 # 🔐 Khởi tạo SDK Pi A2U
 pi = PiNetwork()
