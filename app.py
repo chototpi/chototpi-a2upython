@@ -173,7 +173,7 @@ def a2u_gmop():
             }), 400
 
         if not to_wallet or not to_wallet.startswith("G"):
-            return jsonify({"success": False, "message": "Ví không hợp lệ"}), 400
+            return jsonify({"success": False, "message": "Ví testnet của bạn chưa bật tài sản GMOP không thể nhận token"}), 400
 
         print(f"🔥 Đang gửi {amount} GMOP → {to_wallet}")
 
