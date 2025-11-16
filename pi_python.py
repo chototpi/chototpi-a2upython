@@ -94,3 +94,32 @@ class PiNetwork:
         url = f"{self.base_url}/v2/payments/{payment_id}/approve"
         res = requests.post(url, headers=self.get_http_headers(), json={})
         return res.json()
+
+    # ---------------------------
+    # 🔥 Gửi token GMOP về ví user
+    # ---------------------------
+    def send_token(self, asset_code, asset_issuer, amount, destination):
+        print(f"🚀 Sending {amount} {asset_code} → {destination}")
+
+        account = self.server.load_account(self.keypair.public_key)
+        asset = s_sdk.Asset(asset_code, asset_issuer)
+
+        tx = (
+            s_sdk.TransactionBuilder(
+                source_account=account,
+                network_passphrase=self.network,
+                base_fee=self.fee
+            )
+            .append_payment_op(
+                destination=destination,
+                amount=str(amount),
+                asset=asset
+            )
+            .set_timeout(180)
+            .build()
+        )
+
+        tx.sign(self.keypair)
+        res = self.server.submit_transaction(tx)
+        print("✅ Token transfer TX:", res)
+        return res["id"]
