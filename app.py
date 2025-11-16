@@ -163,22 +163,33 @@ def a2u_gmop():
     try:
         data = request.get_json()
         uid = data.get("uid")
-        amount = str(data.get("amount"))
+        amount = float(data.get("amount"))
         to_wallet = data.get("to_wallet")
+
+        # 🔥 Giới hạn số lượng rút GMOP
+        if amount < 1000 or amount > 10000:
+            return jsonify({
+                "success": False,
+                "message": "Giới hạn mỗi lần rút là 1000 - 10000 GMOP."
+            }), 400
 
         if not to_wallet or not to_wallet.startswith("G"):
             return jsonify({"success": False, "message": "Ví không hợp lệ"}), 400
 
-        print("🔥 Gửi GMOP cho:", to_wallet)
+        print("🔥 Gửi", amount, "GMOP cho:", to_wallet)
 
         txid = pi.send_token(
             asset_code="GMOP",
             asset_issuer="GDUIGY53ZJYDLFIJC43CGKABUJWJDAOC5JQMZWW2I7AVUDL5X5ZKXFM7",
-            amount=amount,
+            amount=str(amount),
             destination=to_wallet
         )
 
-        return jsonify({"success": True, "txid": txid, "to": to_wallet})
+        return jsonify({
+            "success": True,
+            "txid": txid,
+            "to": to_wallet
+        })
 
     except Exception as e:
         traceback.print_exc()
