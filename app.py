@@ -157,3 +157,36 @@ def a2u_test():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/api/a2u-gmop", methods=["POST"])
+def a2u_gmop():
+    try:
+        data = request.get_json()
+        uid = data.get("uid")
+        amount = data.get("amount")
+
+        print("🔥 A2U GMOP cho UID:", uid)
+
+        # 🟡 Lấy thông tin ví user
+        user_url = f"https://api.minepi.com/v2/users/{uid}"
+        user_res = requests.get(user_url, headers=pi.get_http_headers())
+
+        if user_res.status_code != 200:
+            return jsonify({"success": False, "message": "Không tìm thấy user"}), 404
+
+        user_wallet = user_res.json()["user"]["wallet"]["public_key"]
+        print("🎯 Ví user:", user_wallet)
+
+        # 🟢 Gửi token GMOP
+        txid = pi.send_token(
+            asset_code="GMOP",
+            asset_issuer="GDUIGY53ZJYDLFIJC43CGKABUJWJDAOC5JQMZWW2I7AVUDL5X5ZKXFM7",
+            amount=str(amount),
+            destination=user_wallet
+        )
+
+        return jsonify({"success": True, "txid": txid, "to": user_wallet})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500
